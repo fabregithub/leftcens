@@ -8,3 +8,6 @@ inst/doc
 *.tar.gz
 *.Rcheck/
 docs
+
+# Monte Carlo validation outputs (regenerate via validation/mc_validation.R)
+validation/results/

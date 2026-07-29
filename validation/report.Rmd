@@ -1,0 +1,117 @@
+---
+title: "Monte Carlo validation of `gsimp_impute()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: kable
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE,
+  fig.width = 8, fig.height = 5
+)
+results_file <- "results/latest.rds"
+if (!file.exists(results_file)) {
+  knitr::opts_chunk$set(eval = FALSE)
+}
+```
+
+```{r load, eval = file.exists("results/latest.rds")}
+res_obj <- readRDS("results/latest.rds")
+res <- res_obj$results
+summ <- res_obj$summary
+```
+
+`r if (!file.exists(results_file)) "**No results found.** Run \`Rscript validation/mc_validation.R\` (or with a larger \`CONFIG=full N_REP=500\`) first, then knit this report."`
+
+## Study design
+
+This study evaluates how well `leftcens::gsimp_impute()` recovers known ground
+truth for left- and interval-censored data, and whether its multiple-imputation
+uncertainty is calibrated. Ground-truth log-concentrations are simulated
+(multivariate, exchangeable correlation, optional sinh-arcsinh skew), censored
+into the three-tier structure at analyte-specific limits, imputed, and compared
+against the truth and against naive detection-limit substitution.
+
+```{r config}
+cat(sprintf(
+  "config = %s | replications per scenario = %d | M (imputations) = %d | model = %s\n",
+  res_obj$config, res_obj$n_rep, res_obj$M, res_obj$imp_model
+))
+```
+
+## Headline: bias and MI coverage by scenario
+
+```{r summary-table}
+show <- summ[order(summ$censored_frac), c(
+  "n", "p", "rho", "nd_frac", "skew", "censored_frac",
+  "gs_bias", "gs_rmse", "naive_bias", "naive_rmse",
+  "mi_coverage", "mi_coverage_mcse"
+)]
+show[] <- lapply(show, function(x) if (is.numeric(x)) round(x, 3) else x)
+knitr::kable(show, row.names = FALSE,
+             caption = "Per-scenario mean bias, RMSE (log scale), and 95% MI coverage of the true mean. Coverage should be ~0.95.")
+```
+
+## Point bias vs. censoring fraction
+
+gsimp should reduce the upward bias that naive substitution introduces
+(censoring removes the low values). The gap widens as censoring increases.
+
+```{r bias-plot}
+o <- order(summ$censored_frac)
+cf <- summ$censored_frac[o]
+plot(cf, summ$naive_bias[o], type = "b", pch = 16, col = "firebrick",
+     ylim = range(0, summ$naive_bias, summ$gs_bias),
+     xlab = "Censored fraction", ylab = "Mean bias (log scale)",
+     main = "Recovered-mean bias: gsimp vs naive")
+lines(cf, summ$gs_bias[o], type = "b", pch = 17, col = "steelblue")
+abline(h = 0, lty = 3)
+legend("topleft", c("naive (limit substitution)", "gsimp"),
+       col = c("firebrick", "steelblue"), pch = c(16, 17), bty = "n")
+```
+
+## Calibration: multiple-imputation coverage
+
+The key calibration check. A well-calibrated method's 95% MI interval covers the
+true mean ~95% of the time. Watch where coverage degrades.
+
+```{r coverage-plot}
+plot(cf, summ$mi_coverage[o], type = "b", pch = 16, col = "darkgreen",
+     ylim = c(0, 1),
+     xlab = "Censored fraction", ylab = "95% MI coverage of the true mean",
+     main = "MI coverage vs censoring fraction")
+abline(h = 0.95, lty = 2, col = "grey40")
+text(min(cf), 0.95, "nominal 0.95", pos = 3, cex = 0.8, col = "grey40")
+```
+
+## Correlation-structure recovery
+
+```{r cor-plot}
+plot(cf, summ$naive_cor_mae[o], type = "b", pch = 16, col = "firebrick",
+     ylim = range(0, summ$naive_cor_mae, summ$gs_cor_mae, na.rm = TRUE),
+     xlab = "Censored fraction", ylab = "Mean abs. error of correlations",
+     main = "Between-analyte correlation recovery")
+lines(cf, summ$gs_cor_mae[o], type = "b", pch = 17, col = "steelblue")
+legend("topleft", c("naive", "gsimp"),
+       col = c("firebrick", "steelblue"), pch = c(16, 17), bty = "n")
+```
+
+## Interpreting the results
+
+- **Point bias.** gsimp consistently reduces the upward bias of naive
+  substitution. Under light-to-moderate censoring the residual bias is small.
+- **Heavy censoring is the limiting regime.** As the censored fraction grows,
+  residual bias remains (the observed data simply carries less information about
+  the low tail), and because that bias can exceed the multiple-imputation
+  standard error, **MI coverage degrades** — the intervals are correctly narrow
+  but centred slightly high. This is the honest boundary of the method and the
+  main thing to report.
+- **Levers to probe** (all supported by `mc_validation.R`): increasing
+  `iters_all` (convergence), stronger inter-analyte correlation (more
+  information for the conditional model), and the `imp_model` choice
+  (`"glmnet"` for wide data). Re-running the grid across these isolates whether
+  residual bias is a convergence artefact or an information limit.
+```
