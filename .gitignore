@@ -11,3 +11,6 @@ docs
 
 # Monte Carlo validation outputs (regenerate via validation/mc_validation.R)
 validation/results/
+
+# Local working log (not part of the package)
+NOTES.md
