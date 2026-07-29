@@ -57,13 +57,18 @@ simulate_truth <- function(n, p, rho, mu = NULL, sd = 1, skew = 0) {
 #'
 #' Per analyte, `nd_frac` of values fall below the MDL (non-detect) and a further
 #' `dnq_frac` between MDL and LCMRL (detected-not-quantified). Returns a list of
-#' `cens_data` columns.
+#' `cens_data` columns. `nd_frac` and `dnq_frac` may be scalars (applied to every
+#' analyte) or length-`p` vectors for per-analyte (heterogeneous) detection
+#' limits.
 censor_three_tier <- function(z_true, nd_frac, dnq_frac) {
   conc <- exp(z_true)
-  lapply(seq_len(ncol(conc)), function(j) {
+  p <- ncol(conc)
+  nd_frac <- rep_len(nd_frac, p)
+  dnq_frac <- rep_len(dnq_frac, p)
+  lapply(seq_len(p), function(j) {
     cj <- conc[, j]
-    mdl <- as.numeric(stats::quantile(cj, nd_frac))
-    lcmrl <- as.numeric(stats::quantile(cj, nd_frac + dnq_frac))
+    mdl <- as.numeric(stats::quantile(cj, nd_frac[j]))
+    lcmrl <- as.numeric(stats::quantile(cj, nd_frac[j] + dnq_frac[j]))
     left <- ifelse(cj < mdl, 0, ifelse(cj < lcmrl, mdl, cj))
     right <- ifelse(cj < mdl, mdl, ifelse(cj < lcmrl, lcmrl, cj))
     as_interval_data(left, right, log_transform = TRUE)

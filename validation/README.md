@@ -55,16 +55,46 @@ rmarkdown::render("validation/report.Rmd")
 
 ## Files
 
-- `mc_validation.R` — simulation, censoring, metrics, runner, summariser, and a
-  `main` block that runs a config and saves results. Source it to reuse the
-  functions (`run_validation()`, `summarise_validation()`, ...).
+- `mc_validation.R` — the engine: simulation, censoring (per-analyte limits
+  supported), metrics, runner, summariser, and a `main` block. Source it to
+  reuse the functions (`run_validation()`, `summarise_validation()`, ...).
+- `detection_rate_standard.R` — sweeps the detection rate x correlation and
+  derives the lowest detection rate that is still "reliable" (bias and MI
+  coverage criteria).
+- `heterogeneous_limits.R` — tests whether well-observed "anchor" analytes
+  rescue heavily-censored "target" analytes as correlation increases.
 - `report.Rmd` — reads `results/latest.rds` and produces tables and figures.
 - `results/` — generated outputs (git-ignored).
 
-## What to expect
+## Findings so far
 
-gsimp reliably reduces the upward bias of naive substitution. The limiting
-regime is heavy censoring: as the censored fraction rises, residual bias
-persists and MI coverage degrades (intervals correctly narrow but centred
-slightly high). That boundary — where the method helps most and where it starts
-to strain — is the substantive result to report.
+**A rough detection-rate standard (uniform limits, n=200, p=6, log-normal).**
+Reliability requires |mean bias (log)| <= 0.10 AND MI 95% coverage >= 0.90.
+
+| Detection rate | Non-detects | Reliable? | Note |
+|---|---|---|---|
+| >= 80% | <= 20% | yes | point estimates and calibrated MI inference both hold |
+| 70-80% | 20-30% | point only | bias < 0.10 but MI coverage already below nominal |
+| < 70% | > 30% | no | bias grows, coverage collapses |
+
+Two structural results:
+
+1. **Coverage is the binding constraint, not bias.** Point recovery degrades
+   gracefully; MI coverage falls off a cliff, because the small residual upward
+   bias exceeds the (correctly narrow) MI standard error. The reliable limit is
+   stricter for *inference* (>= 80% detection) than for *point summaries*
+   (>= 70%).
+
+2. **Correlation and auxiliary well-observed analytes do NOT extend the reliable
+   range** (`heterogeneous_limits.R`). Even with anchor analytes at 5% ND and
+   correlation up to 0.8, heavily-censored (40% ND) target analytes stay
+   unreliable (coverage ~0.04 -> ~0.17, never near 0.95). The reason: each
+   analyte's conditional imputation model is fit on that analyte's *observed*
+   (upper-truncated) values, so it inherits selection bias no matter how well
+   the neighbours are observed. **Reliability is governed by each analyte's own
+   detection rate.** The implied improvement lever is the conditional *model*
+   (a censored/Tobit regression that accounts for the truncated training
+   sample), not more auxiliary analytes.
+
+These are the substantive results for a methods write-up; re-run at higher
+resolution and replication to sharpen the exact thresholds.
