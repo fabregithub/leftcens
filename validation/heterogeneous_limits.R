@@ -40,6 +40,7 @@ M         <- as.integer(Sys.getenv("M", "15"))
 iters_all <- as.integer(Sys.getenv("ITERS_ALL", "30"))
 BIAS_TOL     <- as.numeric(Sys.getenv("BIAS_TOL", "0.10"))
 COVERAGE_TOL <- as.numeric(Sys.getenv("COVERAGE_TOL", "0.90"))
+models       <- trimws(strsplit(Sys.getenv("MODELS", "ridge,tobit"), ",")[[1]])
 
 p <- n_anchor + n_target
 nd_fracs <- c(rep(nd_anchor, n_anchor), rep(nd_target, n_target))
@@ -47,13 +48,13 @@ anchor_idx <- seq_len(n_anchor)
 target_idx <- n_anchor + seq_len(n_target)
 
 # Per-analyte MI coverage of the true mean (returns a logical vector length p).
-mi_covered_per_analyte <- function(bnds, z_true, M, iters_all, seed) {
+mi_covered_per_analyte <- function(bnds, z_true, M, iters_all, seed, imp_model) {
   n <- nrow(z_true); p <- ncol(z_true)
   means <- matrix(NA_real_, M, p)
   vars <- matrix(NA_real_, M, p)
   for (mi in seq_len(M)) {
     set.seed(seed + mi)
-    fm <- gsimp_impute(bnds, iters_all = iters_all, imp_model = "ridge")
+    fm <- gsimp_impute(bnds, iters_all = iters_all, imp_model = imp_model)
     means[mi, ] <- colMeans(fm)
     vars[mi, ] <- apply(fm, 2, stats::var) / n
   }
@@ -71,53 +72,63 @@ mi_covered_per_analyte <- function(bnds, z_true, M, iters_all, seed) {
 message(sprintf(
   "Heterogeneous-limit experiment: %d anchor analytes @ %.0f%% ND, %d target @ %.0f%% ND",
   n_anchor, 100 * nd_anchor, n_target, 100 * nd_target))
-message(sprintf("Sweeping rho = %s | %d reps, M=%d, iters=%d",
+message(sprintf("Models = %s | sweeping rho = %s | %d reps, M=%d, iters=%d",
+                paste(models, collapse = ", "),
                 paste(rhos, collapse = ", "), n_rep, M, iters_all))
 
 rows <- list()
-for (rho in rhos) {
-  tb <- ab <- numeric(n_rep)          # target / anchor mean bias
-  tc <- ac <- numeric(n_rep)          # target / anchor coverage
-  for (r in seq_len(n_rep)) {
-    seed <- 900000L + as.integer(rho * 1000) * 1000L + r
-    set.seed(seed)
-    z <- simulate_truth(n, p, rho)
-    bnds <- build_bounds(censor_three_tier(z, nd_fracs, 0))
+for (model in models) {
+  for (rho in rhos) {
+    tb <- ab <- numeric(n_rep)          # target / anchor mean bias
+    tc <- ac <- numeric(n_rep)          # target / anchor coverage
+    for (r in seq_len(n_rep)) {
+      # Seed depends only on (rho, r), so every model sees identical data (paired)
+      seed <- 900000L + as.integer(rho * 1000) * 1000L + r
+      set.seed(seed)
+      z <- simulate_truth(n, p, rho)
+      bnds <- build_bounds(censor_three_tier(z, nd_fracs, 0))
 
-    set.seed(seed + 1L)
-    f <- gsimp_impute(bnds, iters_all = iters_all, imp_model = "ridge")
-    bias_per <- colMeans(f) - colMeans(z)
-    tb[r] <- mean(bias_per[target_idx])
-    ab[r] <- mean(bias_per[anchor_idx])
+      set.seed(seed + 1L)
+      f <- gsimp_impute(bnds, iters_all = iters_all, imp_model = model)
+      bias_per <- colMeans(f) - colMeans(z)
+      tb[r] <- mean(bias_per[target_idx])
+      ab[r] <- mean(bias_per[anchor_idx])
 
-    cov_per <- mi_covered_per_analyte(bnds, z, M, iters_all, seed + 1000L)
-    tc[r] <- mean(cov_per[target_idx])
-    ac[r] <- mean(cov_per[anchor_idx])
+      cov_per <- mi_covered_per_analyte(bnds, z, M, iters_all, seed + 1000L, model)
+      tc[r] <- mean(cov_per[target_idx])
+      ac[r] <- mean(cov_per[anchor_idx])
+    }
+    rows[[length(rows) + 1]] <- data.frame(
+      model = model, rho = rho,
+      target_bias = mean(tb), target_bias_mcse = stats::sd(tb) / sqrt(n_rep),
+      target_coverage = mean(tc),
+      anchor_bias = mean(ab), anchor_coverage = mean(ac),
+      target_reliable = abs(mean(tb)) <= BIAS_TOL & mean(tc) >= COVERAGE_TOL
+    )
+    message(sprintf("  %-6s rho=%.1f: target bias=%+.3f coverage=%.2f",
+                    model, rho, mean(tb), mean(tc)))
   }
-  rows[[length(rows) + 1]] <- data.frame(
-    rho = rho,
-    target_bias = mean(tb), target_bias_mcse = stats::sd(tb) / sqrt(n_rep),
-    target_coverage = mean(tc),
-    anchor_bias = mean(ab), anchor_coverage = mean(ac),
-    target_reliable = abs(mean(tb)) <= BIAS_TOL & mean(tc) >= COVERAGE_TOL
-  )
-  message(sprintf("  rho=%.1f: target bias=%.3f coverage=%.2f",
-                  rho, mean(tb), mean(tc)))
 }
 res <- do.call(rbind, rows)
 
 dir.create("validation/results", showWarnings = FALSE, recursive = TRUE)
 saveRDS(list(config = list(n = n, n_anchor = n_anchor, n_target = n_target,
                            nd_anchor = nd_anchor, nd_target = nd_target,
-                           n_rep = n_rep, M = M, iters_all = iters_all),
+                           models = models, n_rep = n_rep, M = M,
+                           iters_all = iters_all),
              results = res),
         "validation/results/heterogeneous_limits.rds")
 utils::write.csv(res, "validation/results/heterogeneous_limits.csv",
                  row.names = FALSE)
 
 message(sprintf(
-  "\n== Target-analyte reliability vs correlation (targets @ %.0f%% ND, anchors @ %.0f%% ND) ==",
+  "\n== Target-analyte reliability vs correlation, by model (targets @ %.0f%% ND, anchors @ %.0f%% ND) ==",
   100 * nd_target, 100 * nd_anchor))
-print(res, row.names = FALSE, digits = 3)
-message("\nInterpretation: if target_coverage rises toward 0.95 as rho increases,")
-message("correlation with well-observed anchors rescues the heavily-censored analytes.")
+print(res[order(res$model, res$rho),
+          c("model", "rho", "target_bias", "target_coverage",
+            "anchor_coverage", "target_reliable")],
+      row.names = FALSE, digits = 3)
+message("\nInterpretation: does target_coverage rise with rho? For the observed-only")
+message("model (ridge) it did not (selection bias). If the censored model (tobit)")
+message("lets well-observed anchors rescue heavily-censored targets, its target")
+message("bias/coverage should hold up where ridge's does not.")

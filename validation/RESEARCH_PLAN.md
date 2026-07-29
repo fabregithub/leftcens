@@ -8,10 +8,8 @@ Rbuildignored).
 
 1. `git pull`, then install so the scripts' `library(leftcens)` resolves:
    `R CMD INSTALL .` (or `devtools::install()`).
-2. **First task: E1 — heterogeneous detection limits under tobit** (see below).
-   Add a tobit arm to `validation/heterogeneous_limits.R` and compare target
-   bias/coverage ridge-vs-tobit across correlation. This is the experiment most
-   likely to overturn a prior (ridge-era) finding.
+2. **E1 is DONE** (tobit arm added to `heterogeneous_limits.R`; see the E1
+   result below). **Next task: E2 — number of variables / PCA regime.**
 3. Then follow **Recommended order** at the bottom; every driver is
    env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params) for scaling up.
 4. Package is at **0.2.0** (tobit is the default `imp_model`); tests green,
@@ -50,16 +48,24 @@ paired ridge-vs-tobit designs (same data, only the model differs), as in
 
 ## Experiments (ranked by novelty / value)
 
-### E1 — Heterogeneous detection limits under tobit  (was point 5)  [HIGH]
+### E1 — Heterogeneous detection limits under tobit  (was point 5)  [DONE]
 - **Question:** do well-observed "anchor" analytes now rescue heavily-censored
   "target" analytes, given tobit removes the selection bias that blocked this
   for ridge?
 - **Prior (ridge):** no rescue even at rho = 0.8 (`heterogeneous_limits.R`).
-- **Hypothesis:** tobit lets anchors + correlation rescue targets — would
-  *overturn* the ridge-era refutation. Most likely to produce a new result.
-- **How:** add a tobit arm to `heterogeneous_limits.R` (it already sweeps rho
-  with anchors at low ND, targets at high ND); compare target bias/coverage,
-  ridge vs tobit, across rho.
+- **Result (tobit arm, MODELS="ridge,tobit"; 40% ND targets, 5% ND anchors, 20
+  reps, M=10):** tobit makes the target analytes reliable (bias ~0, coverage
+  1.00) at **every** rho, *including rho = 0*, while ridge stays biased
+  (~+0.16) with coverage ~0.05-0.12 throughout. So the rescue is **not** via the
+  anchors/correlation — it is tobit's *per-analyte* censored likelihood removing
+  the selection bias directly (even an intercept-only censored fit recovers the
+  mean). Overturns the ridge-era "targets unreliable" conclusion, but the
+  mechanism is "the censored model makes correlation unnecessary", not
+  "correlation now helps".
+- **Refinement this opened:** correlation may improve tobit *efficiency* (tighter
+  intervals — its coverage sits at a conservative 1.00) even though it does not
+  affect *bias*. Test with an RMSE / interval-width metric in E3/E4.
+- **Run it (higher rep):** `N_REP=200 M=25 Rscript validation/heterogeneous_limits.R`
 
 ### E2 — Number of variables k (= p) imputed together  (point 2)  [NEW]
 - **Question:** how does recovery behave as `p` grows and crosses `p ≈ n`, where
@@ -82,9 +88,13 @@ paired ridge-vs-tobit designs (same data, only the model differs), as in
 
 ### E4 — Censoring rate x correlation interaction under tobit  (point 4)
 - **Question:** does correlation help tobit at high censoring (where it was
-  inert for ridge)?
+  inert for ridge)? Per E1, expect correlation to affect *efficiency*, not
+  *bias*, for tobit.
 - **How:** extend `detection_rate_standard.R` to run a tobit arm across the
-  rho x detection-rate grid. Partly overlaps E3; lower marginal novelty.
+  rho x detection-rate grid. **Record RMSE and mean MI interval width**, not
+  just bias/coverage, since for tobit the interesting effect of correlation is
+  narrower intervals / lower variance rather than reduced bias. Partly overlaps
+  E3.
 
 ### Gaps to fold in
 - **E5 — Three-tier (DNQ) band.** Almost everything used pure left-censoring

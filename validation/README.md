@@ -148,6 +148,14 @@ coverage sits at ~1.00, i.e. mildly conservative rather than under-covering --
 the safe direction. This makes the censored conditional model the clear path to
 extending reliable imputation into heavy-censoring regimes.
 
+**Heterogeneous limits, revisited under tobit (`heterogeneous_limits.R`,
+MODELS="ridge,tobit").** For ridge, well-observed anchor analytes did not rescue
+heavily-censored (40% ND) targets at any correlation. tobit makes those targets
+reliable (bias ~0, coverage 1.00) at **every** correlation *including rho = 0* --
+so the rescue is not via the anchors but via tobit's per-analyte censored
+likelihood. Correlation is expected to affect tobit's *efficiency* (interval
+width), not its bias; that is the open follow-up.
+
 These are the substantive results for a methods write-up. Grids used moderate
 replication (transition-zone coverage carries Monte Carlo SE ~+/-0.03-0.05). For
 the definitive run use higher replication on capable hardware:
