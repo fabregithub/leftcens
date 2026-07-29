@@ -66,6 +66,8 @@ rmarkdown::render("validation/report.Rmd")
 - `run_full.R` — runs the full 72-scenario grid in batches, accumulating
   replications across calls (`MODE=batch` ... then `MODE=summarise`). Use when a
   single high-replication pass exceeds the available run time.
+- `tobit_vs_ridge.R` — paired comparison of the ridge and tobit conditional
+  models across the detection-rate sweep (same data, only the model differs).
 - `report.Rmd` — reads `results/latest.rds` and produces tables and figures.
 - `results/` — generated outputs (git-ignored).
 
@@ -124,11 +126,33 @@ fixed-`n` sweep could not show:
    data. `p` (5 vs 15) is a minor effect; gsimp ~halves naive-substitution bias
    throughout.
 
-These are the substantive results for a methods write-up. This grid used
-moderate replication (50 reps, M=10); coverage in the transition zone carries
-Monte Carlo SE ~+/-0.03. For the definitive run use higher replication on
-capable hardware:
+### The tobit conditional model fixes it (`tobit_vs_ridge.R`)
+
+The observed-only ridge model fails above ~25-35% censoring because it is fit on
+the upper-truncated *detected* values. The `imp_model = "tobit"` censored
+Gaussian model, fit on observed **and** censored rows, removes that bias
+entirely. Paired comparison (same data, detection sweep, n in {100, 300}):
+
+| Detection rate | ridge bias / coverage | tobit bias / coverage |
+|---|---|---|
+| 85% | 0.03 / 1.00 | ~0.00 / 1.00 |
+| 75% | 0.07 / 0.96-1.00 | ~0.00 / 1.00 |
+| 65% | 0.13 / 0.04-0.71 | ~0.00 / 1.00 |
+| 55% | 0.21 / ~0.05 | ~0.00 / 1.00 |
+| 45% | 0.31 / ~0.01 | ~-0.01 / ~1.00 |
+
+**Lowest reliable detection rate: ridge 75%, tobit at least 45%** (the sweep
+floor -- tobit may extend further), at *both* sample sizes. tobit also removes
+the sample-size penalty (it works at n=300 where ridge fails hardest). Its
+coverage sits at ~1.00, i.e. mildly conservative rather than under-covering --
+the safe direction. This makes the censored conditional model the clear path to
+extending reliable imputation into heavy-censoring regimes.
+
+These are the substantive results for a methods write-up. Grids used moderate
+replication (transition-zone coverage carries Monte Carlo SE ~+/-0.03-0.05). For
+the definitive run use higher replication on capable hardware:
 
 ```bash
 CONFIG=full N_REP=500 M=50 Rscript validation/mc_validation.R
+N_REP=200 M=25 Rscript validation/tobit_vs_ridge.R
 ```
