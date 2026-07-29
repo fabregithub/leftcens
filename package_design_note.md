@@ -242,8 +242,25 @@ passed down from `multi_impute()`.
    simulation as the acceptance criterion before this is used on real study data.
 6. Vignettes; run `available::available("leftcens")` before any public release/CRAN
    submission if not already done in Section 0.
-7. Wire `gsimp_impute()` output as an alternative pre-processing step feeding into
-   `generic-mi-brms-pipeline`'s Step 2/3, alongside the existing `miceRanger` path.
+7. **Keep `leftcens` independent of `generic-mi-brms-pipeline`** (decision
+   2026-07-29 — supersedes the earlier plan to add a `gsimp_impute()` strategy
+   inside the pipeline). Rationale: the pipeline's imputer (`miceRanger`) assumes
+   **MAR** — it treats missingness as uninformative about magnitude. Left-censored
+   data is **MNAR** (a value is missing precisely because it falls below a
+   detection limit), so routing it through a MAR imputer biases estimates upward
+   (the naive-substitution bias). The pipeline's own docs already say to handle
+   such data appropriately upstream; `leftcens` *is* that upstream step
+   (`MNAR-censored data → completed data → pipeline`). Independence honours the
+   boundary the pipeline declares, avoids forcing a censoring representation into
+   a mature MAR-oriented pipeline, and avoids a local non-CRAN dependency.
+   Investigated and confirmed: the pipeline has no censoring representation today.
+
+   If interoperability is ever wanted, the clean seam — *without* coupling the
+   packages — is `leftcens` emitting **M** completed datasets that the pipeline
+   consumes as its M imputations (pipeline imputation set to pass-through), so the
+   censoring-imputation uncertainty propagates through the pipeline's Rubin
+   pooling, rather than feeding a single completed dataset as if it were ground
+   truth.
 
 ---
 
