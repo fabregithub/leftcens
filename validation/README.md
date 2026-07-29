@@ -63,6 +63,9 @@ rmarkdown::render("validation/report.Rmd")
   coverage criteria).
 - `heterogeneous_limits.R` — tests whether well-observed "anchor" analytes
   rescue heavily-censored "target" analytes as correlation increases.
+- `run_full.R` — runs the full 72-scenario grid in batches, accumulating
+  replications across calls (`MODE=batch` ... then `MODE=summarise`). Use when a
+  single high-replication pass exceeds the available run time.
 - `report.Rmd` — reads `results/latest.rds` and produces tables and figures.
 - `results/` — generated outputs (git-ignored).
 
@@ -96,5 +99,36 @@ Two structural results:
    (a censored/Tobit regression that accounts for the truncated training
    sample), not more auxiliary analytes.
 
-These are the substantive results for a methods write-up; re-run at higher
-resolution and replication to sharpen the exact thresholds.
+### Full-grid results (72 scenarios, 50 reps, M=10; n in {100,300}, p in {5,15})
+
+The full grid (`run_full.R`) confirms the boundary and adds two things the
+fixed-`n` sweep could not show:
+
+| Censored | gsimp bias | MI coverage | Reliable? |
+|---|---|---|---|
+| 25% (15% ND) | ~0.04 | 1.00 (all n, p, rho, skew) | yes |
+| 45% (35% ND), symmetric | ~0.15 | 0.57 @ n=100 -> 0.01 @ n=300 | no |
+| 45% (35% ND), right-skew | ~0.01-0.04 | ~1.00 | yes |
+| 65% (55% ND) | 0.35 (0.22 skewed) | ~0.00 | no |
+
+3. **Coverage failure worsens with sample size.** At 45% censoring the point
+   bias is unchanged across n (~0.15), but coverage falls from ~0.5 (n=100) to
+   ~0.01 (n=300): the bias is systematic, so a larger n only shrinks the CI
+   around the wrong centre. **More samples cannot fix censoring bias -- they make
+   the inference worse.** The reliable detection-rate threshold is therefore
+   stricter for larger studies.
+
+4. **Distribution shape matters.** Right-skew (sinh-arcsinh) sharply reduced bias
+   and restored coverage at 45% censoring (bias 0.15 -> ~0.02), so the standard
+   is worst for symmetric log-scale data and more forgiving for right-skewed
+   data. `p` (5 vs 15) is a minor effect; gsimp ~halves naive-substitution bias
+   throughout.
+
+These are the substantive results for a methods write-up. This grid used
+moderate replication (50 reps, M=10); coverage in the transition zone carries
+Monte Carlo SE ~+/-0.03. For the definitive run use higher replication on
+capable hardware:
+
+```bash
+CONFIG=full N_REP=500 M=50 Rscript validation/mc_validation.R
+```

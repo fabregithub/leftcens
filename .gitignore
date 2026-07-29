@@ -14,3 +14,6 @@ validation/results/
 
 # Local working log (not part of the package)
 NOTES.md
+
+# Rendered validation report
+validation/*.html

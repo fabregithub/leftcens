@@ -24,7 +24,10 @@ res <- res_obj$results
 summ <- res_obj$summary
 ```
 
-`r if (!file.exists(results_file)) "**No results found.** Run \`Rscript validation/mc_validation.R\` (or with a larger \`CONFIG=full N_REP=500\`) first, then knit this report."`
+```{r no-results, echo = FALSE, results = "asis", eval = !file.exists("results/latest.rds")}
+cat("**No results found.** Run the validation first",
+    "(e.g. `Rscript validation/mc_validation.R`), then knit this report.")
+```
 
 ## Study design
 
@@ -37,8 +40,8 @@ against the truth and against naive detection-limit substitution.
 
 ```{r config}
 cat(sprintf(
-  "config = %s | replications per scenario = %d | M (imputations) = %d | model = %s\n",
-  res_obj$config, res_obj$n_rep, res_obj$M, res_obj$imp_model
+  "config = %s | replications per scenario = %s | M (imputations) = %s | model = %s\n",
+  res_obj$config, format(res_obj$n_rep), format(res_obj$M), res_obj$imp_model
 ))
 ```
 
