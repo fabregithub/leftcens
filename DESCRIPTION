@@ -1,0 +1,31 @@
+Package: leftcens
+Title: Descriptive Statistics and Imputation for Left- and Interval-Censored Data
+Version: 0.0.0.9000
+Authors@R:
+    person(given = "Shoji F.",
+           family = "Nakayama",
+           role = c("aut", "cre"),
+           email = "fabre@nies.go.jp",
+           comment = c(ORCID = "0000-0001-7772-0389"))
+Description: Tools for analytical and environmental measurement data with a
+    three-tier interval-censoring structure (non-detect, detected but not
+    quantified, and quantified). Provides a single interval-censored data
+    representation consumed by both non-parametric and semi-parametric
+    descriptive summaries and by Gibbs-sampling imputation extended to
+    per-observation censoring bounds. Classic single-limit (Helsel-style)
+    left censoring is handled as a degenerate case of the same model.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 8.0.0
+Imports:
+    icenReg,
+    survival
+Suggests:
+    glmnet,
+    imputeLCMD,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+VignetteBuilder: knitr

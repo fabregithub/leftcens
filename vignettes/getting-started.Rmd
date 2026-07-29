@@ -1,0 +1,144 @@
+---
+title: "Getting started with leftcens"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with leftcens}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+set.seed(1)
+```
+
+```{r setup}
+library(leftcens)
+```
+
+## The problem: measurements you only know an interval for
+
+Analytical and environmental measurement data rarely come as clean numbers. A
+laboratory reports a concentration in one of three ways, depending on where the
+true value sits relative to two reporting thresholds --- the **method detection
+limit** (MDL) and the **lowest concentration minimum reporting level** (LCMRL):
+
+| Report            | What is known                    | Interval        |
+|-------------------|----------------------------------|-----------------|
+| *Non-detect*      | value is below the MDL           | `(0, MDL)`      |
+| *Detected, not quantified* | value is between MDL and LCMRL | `(MDL, LCMRL)`  |
+| *Quantified*      | an actual measurement            | `(value, value)`|
+
+Every observation is really an **interval** that the true value lies inside. A
+quantified measurement is just an interval of width zero. `leftcens` takes this
+interval view seriously: one data representation, `cens_data`, underlies both the
+descriptive-statistics and the imputation tools.
+
+## Building a `cens_data` object
+
+`as_interval_data()` takes the per-observation lower and upper bounds and
+classifies each row for you. Suppose an analyte has MDL = 0.5 and LCMRL = 2.0:
+
+```{r construct}
+x <- as_interval_data(
+  left  = c(0,   0,   0.5, 3.1, 4.2, 0,   1.9),
+  right = c(0.5, 0.5, 2.0, 3.1, 4.2, 0.5, 2.0)
+)
+x
+```
+
+The category is *derived* from the bounds, never supplied separately, so the two
+can never disagree. By default the bounds are stored on the natural-log scale
+(`log_transform = TRUE`), which is the scale the NPMLE and imputation machinery
+work on; a non-detect's lower bound of `0` becomes `-Inf` there, exactly the
+left-censored bound those methods expect.
+
+### Coming from single-limit (Helsel-style) data
+
+Classic left-censored data has one detection limit per observation and no
+"detected but not quantified" band. That is simply the two-tier collapse of the
+same interval model, so there is a convenience constructor for it:
+
+```{r single}
+as_interval_data_from_single(
+  value    = c(2.0, 5.1, 2.0, 8.3),
+  censored = c(TRUE, FALSE, TRUE, FALSE)
+)
+```
+
+A censored value is treated as `(0, value)` (below the limit); a detected value
+as `(value, value)`.
+
+## Non-parametric descriptive statistics
+
+`desc_np()` fits a non-parametric maximum-likelihood estimate (the Turnbull
+NPMLE) of the distribution behind the intervals --- no distributional assumption,
+and non-detects and detected-not-quantified cells are accounted for correctly.
+
+```{r desc-np}
+fit <- desc_np(x)
+fit
+```
+
+Extract quantiles (on the original concentration scale) or plot the estimated
+cumulative distribution:
+
+```{r desc-np-quantile}
+quantile(fit, probs = c(0.1, 0.5, 0.9))
+```
+
+```{r desc-np-plot}
+plot(fit)
+```
+
+Two NPMLE algorithms are available: `method = "turnbull"` (the default, via
+`survival::survfit()`) and `method = "wang"` (via `icenReg::ic_np()`). Because
+the Turnbull NPMLE depends only on the ordering of the intervals, the estimate
+is the same whether the data were stored on the log scale or not --- the fit is
+computed on the original scale so quantiles read directly as concentrations.
+
+## Semi-parametric descriptive statistics
+
+`desc_sp()` fits a semi-parametric proportional-hazards (`"ph"`) or
+proportional-odds (`"po"`) model with a non-parametric baseline. With no
+covariates it estimates the baseline distribution; with covariates it estimates
+how each covariate shifts the concentration distribution.
+
+```{r desc-sp}
+grp <- factor(c("A", "A", "A", "B", "B", "B", "B"))
+sp <- desc_sp(x, covariates = grp, model = "ph")
+sp
+```
+
+The reported ratio is a hazard ratio under `"ph"` (or an odds ratio under
+`"po"`). Standard errors and p-values require bootstrap samples:
+
+```{r desc-sp-bs}
+sp_bs <- desc_sp(x, covariates = grp, model = "ph", bs_samples = 100)
+summary(sp_bs)
+```
+
+You can overlay the estimated distribution for each covariate group:
+
+```{r desc-sp-plot}
+nd <- data.frame(covariate = factor(c("A", "B")))
+plot(sp, newdata = nd)
+```
+
+## Imputation
+
+The second half of the package imputes the censored cells of a wide analyte
+matrix by Gibbs sampling, respecting each cell's interval. That has its own
+walkthrough --- see `vignette("imputation-bounds", package = "leftcens")`.
+
+```{r impute-teaser}
+a <- as_interval_data(c(0, 2, 5, 8, 3), c(1, 4, 5, 8, 3))
+b <- as_interval_data(c(3, 0, 7, 2, 6), c(3, 1, 7, 4, 6))
+bounds <- build_bounds(list(analyte_a = a, analyte_b = b))
+bounds
+```

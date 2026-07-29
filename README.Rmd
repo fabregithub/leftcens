@@ -1,0 +1,132 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+set.seed(1)
+```
+
+# leftcens
+
+<!-- badges: start -->
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+<!-- badges: end -->
+
+**leftcens** provides descriptive statistics and imputation for left- and
+interval-censored measurement data — the kind produced by analytical and
+environmental laboratories, where a result may fall below a reporting threshold
+rather than being a clean number.
+
+A measurement is reported in one of three tiers, and each is really an *interval*
+the true value lies inside:
+
+| Report                     | What is known               | Interval         |
+|----------------------------|-----------------------------|------------------|
+| Non-detect                 | below the detection limit   | `(0, MDL)`       |
+| Detected, not quantified   | between MDL and LCMRL        | `(MDL, LCMRL)`   |
+| Quantified                 | an actual measurement        | `(value, value)` |
+
+One data representation (`cens_data`) underlies everything, so the interval
+semantics are defined exactly once and shared by two capability modules:
+
+- **Descriptive statistics** — non-parametric (Turnbull NPMLE) and
+  semi-parametric (proportional-hazards / proportional-odds) summaries of
+  interval-censored data.
+- **Imputation** — Gibbs-sampling imputation that draws each censored cell from
+  within its own interval, extended to accept *per-cell* bounds so non-detect and
+  detected-not-quantified values in the same analyte are handled correctly.
+
+Classic single-limit (Helsel-style) left censoring is treated as a degenerate
+two-tier case of the same model, not a separate mode.
+
+## Installation
+
+leftcens is not yet on CRAN. Install the development version from source:
+
+``` r
+# from a local clone
+# install.packages("devtools")
+devtools::install("path/to/leftcens")
+
+# or, once hosted in a git repository (replace with the actual path)
+# remotes::install_github("<owner>/leftcens")
+```
+
+## Example
+
+Build a `cens_data` object from per-observation bounds and summarise it
+non-parametrically:
+
+```{r example}
+library(leftcens)
+
+# an analyte with MDL = 0.5, LCMRL = 2.0
+x <- as_interval_data(
+  left  = c(0,   0,   0.5, 3.1, 4.2, 0,   1.9),
+  right = c(0.5, 0.5, 2.0, 3.1, 4.2, 0.5, 2.0)
+)
+x
+
+fit <- desc_np(x)
+quantile(fit, probs = c(0.1, 0.5, 0.9))
+```
+
+Impute censored cells of a wide analyte matrix, drawing each value from within
+its interval. Naively substituting the detection limit biases means upward, since
+censoring removes the *low* values; the Gibbs sampler draws from within each
+interval and recovers the truth more closely (the more so with more, and more
+correlated, analytes):
+
+```{r impute}
+# correlated log-concentrations, censored below each analyte's 30th percentile
+n <- 200; p <- 3
+z_true <- matrix(rnorm(n * p), n, p) %*% chol(matrix(0.6, p, p) + diag(0.4, p))
+conc <- exp(z_true)
+lim <- apply(conc, 2, quantile, 0.30)
+
+cds <- lapply(seq_len(p), function(j) {
+  cj <- conc[, j]
+  as_interval_data(
+    left  = ifelse(cj < lim[j], 0,      cj),
+    right = ifelse(cj < lim[j], lim[j], cj)
+  )
+})
+
+bounds <- build_bounds(cds)
+filled <- gsimp_impute(bounds, iters_all = 30)
+
+naive <- bounds$data_wide
+naive[bounds$to_impute] <- bounds$hi_mat[bounds$to_impute]
+
+rbind(
+  truth = colMeans(z_true),
+  gsimp = colMeans(filled),
+  naive = colMeans(naive)
+)
+```
+
+## Learn more
+
+- `vignette("getting-started", package = "leftcens")` — the data model and the
+  descriptive-statistics tools.
+- `vignette("imputation-bounds", package = "leftcens")` — the per-cell bounds
+  and the Gibbs sampler, with a recovery demonstration.
+
+## License and provenance
+
+leftcens is released under the **MIT license**.
+
+The imputation is an independent, clean-room implementation of the GSimp *method*
+(Wei R. *et al.* 2018, *PLoS Comput. Biol.* 14(1):e1005973,
+[doi:10.1371/journal.pcbi.1005973](https://doi.org/10.1371/journal.pcbi.1005973)),
+written from the published algorithm rather than ported from the (CC BY-NC-SA)
+GSimp source. Please cite the GSimp paper when you use the imputation.

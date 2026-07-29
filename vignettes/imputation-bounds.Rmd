@@ -1,0 +1,191 @@
+---
+title: "Per-cell imputation bounds"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Per-cell imputation bounds}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+set.seed(2024)
+```
+
+```{r setup}
+library(leftcens)
+```
+
+## From intervals to imputable cells
+
+The descriptive tools (`vignette("getting-started")`) summarise censored data in
+place. Sometimes you instead need *complete* values --- for example to feed a
+downstream model that cannot take intervals. `leftcens` imputes the censored
+cells of a wide analyte matrix (rows = samples, columns = analytes) by Gibbs
+sampling, drawing each imputed value from within its own censoring interval.
+
+Two pieces do the work:
+
+1. `build_bounds()` turns one `cens_data` per analyte into the per-cell bound
+   matrices the sampler needs.
+2. `gsimp_impute()` runs the Gibbs sampler.
+
+## Why *per-cell* bounds
+
+The imputation lineage here is GSimp (Wei et al. 2018), which imputes
+left-censored metabolomics data using a single detection limit **per analyte
+column**: every missing cell in a column shares one upper bound.
+
+Environmental data breaks that assumption. Within a single analyte you can have
+both non-detects `(0, MDL)` *and* detected-but-not-quantified values
+`(MDL, LCMRL)` --- two different bands, in the same column. So `leftcens`
+generalises the truncation to a bound **per cell**: `lo_mat` and `hi_mat` carry
+one `(lo, hi)` pair for every entry, not one per column. A non-detect and a
+detected-not-quantified value in the same analyte are imputed within their
+respective intervals.
+
+`build_bounds()` assembles these matrices:
+
+```{r build}
+# two analytes, each mixing all three tiers
+a <- as_interval_data(left  = c(0, 2, 5, 8, 0, 3),
+                      right = c(1, 4, 5, 8, 1, 3))
+b <- as_interval_data(left  = c(3, 0, 7, 0, 6, 2),
+                      right = c(3, 1, 7, 1, 6, 4))
+bounds <- build_bounds(list(analyte_a = a, analyte_b = b))
+bounds
+```
+
+The result bundles four aligned matrices on the working (log) scale:
+
+```{r inspect}
+bounds$data_wide   # observed values; NA where a cell must be imputed
+bounds$lo_mat      # lower bounds; NA where the cell is observed
+bounds$hi_mat      # upper bounds
+```
+
+Because all three are built together, the missing pattern of `data_wide` is
+*guaranteed* to match the bounds --- there is no way for the data and its
+truncation limits to disagree. On the log scale a non-detect's `(0, MDL)` becomes
+`(-Inf, log MDL)`, i.e. left-censoring, with no special-casing:
+
+```{r left-cens}
+identical(is.na(bounds$data_wide), bounds$to_impute)
+```
+
+Cells whose bounds are both `NA` (ordinary, unconstrained missing values) flow
+through too, imputed from `(-Inf, Inf)`.
+
+## Running the sampler
+
+`gsimp_impute()` fills every censored cell. Each analyte is repeatedly redrawn
+from its conditional distribution given the other analytes, with every draw
+constrained to that cell's interval by a truncated normal:
+
+```{r impute}
+filled <- gsimp_impute(bounds, iters_all = 20)
+filled
+```
+
+Every imputed value lands inside its interval by construction:
+
+```{r within}
+m <- bounds$to_impute
+all(filled[m] <= bounds$hi_mat[m] &
+      (is.infinite(bounds$lo_mat[m]) | filled[m] >= bounds$lo_mat[m]))
+```
+
+### Knobs
+
+- **`imp_model`** --- the conditional model relating each analyte to the others:
+  `"ridge"` (default; base-R ridge regression, no extra dependency and always
+  solvable), `"lm"`, `"glmnet"` (elastic net, closest to the original GSimp), or
+  your own `function(yo, Xo, Xm)` returning `list(mean, sd)`.
+- **`iters_all`** --- the number of outer Gibbs sweeps; this is the mixing /
+  convergence control. Increase it until the imputed summaries stabilise.
+- **`iters_each`** --- inner refinement draws per analyte per sweep. This only
+  matters for *stochastic* conditional models (a cross-validated `glmnet` fit
+  differs run to run); for the deterministic ridge default it is redundant,
+  hence the default of `1`.
+- **`initial`** --- `"bounds"` (draw from each analyte's observed mean/sd,
+  truncated) or `"qrilc"` (needs the *imputeLCMD* package).
+
+## Does it work? A recovery check
+
+The honest test of an imputation method is whether it recovers known truth. We
+simulate correlated log-concentrations, censor them into the three tiers at each
+analyte's own limits, impute, and compare.
+
+```{r recovery}
+n <- 200; p <- 4
+mu <- c(0.5, 1.0, 1.5, 0.8)
+R <- matrix(0.6, p, p); diag(R) <- 1
+z_true <- sweep(matrix(rnorm(n * p), n, p) %*% chol(R), 2, mu, "+")
+conc <- exp(z_true)                       # original-scale ground truth
+
+# censor: below the 25th percentile -> non-detect, 25-40th -> DNQ
+mdl   <- apply(conc, 2, quantile, 0.25)
+lcmrl <- apply(conc, 2, quantile, 0.40)
+cds <- lapply(seq_len(p), function(j) {
+  cj <- conc[, j]
+  left  <- ifelse(cj < mdl[j], 0,      ifelse(cj < lcmrl[j], mdl[j],   cj))
+  right <- ifelse(cj < mdl[j], mdl[j], ifelse(cj < lcmrl[j], lcmrl[j], cj))
+  as_interval_data(left, right)
+})
+bounds <- build_bounds(cds)
+mean(bounds$to_impute)                    # fraction of cells censored
+```
+
+```{r recovery-fit}
+filled <- gsimp_impute(bounds, iters_all = 30)
+
+# Compare against naive substitution at the detection limit.
+naive <- bounds$data_wide
+naive[bounds$to_impute] <- bounds$hi_mat[bounds$to_impute]
+
+rbind(
+  truth = colMeans(z_true),
+  gsimp = colMeans(filled),
+  naive = colMeans(naive)
+)
+```
+
+Substituting the detection limit biases the analyte means upward (censoring
+removes the *low* values). The Gibbs imputation, drawing from the conditional
+distribution within each interval, tracks the true means far more closely --- and
+recovers the between-analyte correlation structure as well:
+
+```{r recovery-cor}
+off <- upper.tri(diag(p))
+c(gsimp = mean(abs((cor(filled) - cor(z_true))[off])),
+  naive = mean(abs((cor(naive) - cor(z_true))[off])))
+```
+
+## Assumptions and caveats
+
+- **Missingness is informative (MNAR).** Censoring depends on the value itself
+  (small values fall below the limit). The truncated-normal draw models this
+  directly; do not treat these as missing-at-random and impute with an unbounded
+  method.
+- **Work on the log scale.** Concentration data is typically log-normal and the
+  conditional-normal model assumes approximate normality. Build your `cens_data`
+  with `log_transform = TRUE` (the default). Imputed values are returned on that
+  same log scale --- exponentiate if you need original units.
+- **The conditional model matters.** Recovery depends on the other analytes being
+  informative predictors. With few or uncorrelated analytes the imputation
+  reverts toward the marginal interval, which is still valid but less precise.
+- **Convergence is your responsibility.** Increase `iters_all` until imputed
+  summaries stop drifting; the defaults are modest.
+
+## Provenance and licensing
+
+The Gibbs sampler is an independent, clean-room implementation of the GSimp
+*method* (Wei et al. 2018, PLoS Comput. Biol. 14(1):e1005973), written from the
+published algorithm rather than ported from the GSimp source code. This keeps
+`leftcens` under its MIT license. Please cite the original GSimp paper when you
+use the imputation.
