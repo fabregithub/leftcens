@@ -4,6 +4,20 @@ Planning doc for the next phase of `leftcens` validation work. Committed so it
 travels across machines. Not part of the package build (`validation/` is
 Rbuildignored).
 
+## ▶ Start here (resuming on another machine)
+
+1. `git pull`, then install so the scripts' `library(leftcens)` resolves:
+   `R CMD INSTALL .` (or `devtools::install()`).
+2. **First task: E1 — heterogeneous detection limits under tobit** (see below).
+   Add a tobit arm to `validation/heterogeneous_limits.R` and compare target
+   bias/coverage ridge-vs-tobit across correlation. This is the experiment most
+   likely to overturn a prior (ridge-era) finding.
+3. Then follow **Recommended order** at the bottom; every driver is
+   env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params) for scaling up.
+4. Package is at **0.2.0** (tobit is the default `imp_model`); tests green,
+   `R CMD check` 0/0/0. Heavy runs go here on the workstation — the 10-min /
+   library-path limits from the Claude Code environment do not apply.
+
 ## Where things stand (start-of-plan snapshot)
 
 - **Package: leftcens 0.2.0.** `gsimp_impute()` defaults to `imp_model = "tobit"`
