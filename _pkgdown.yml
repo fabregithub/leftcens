@@ -1,0 +1,29 @@
+url: https://fabregithub.github.io/leftcens/
+
+template:
+  bootstrap: 5
+
+reference:
+- title: Data model
+  desc: Construct and inspect interval-censored data.
+  contents:
+  - as_interval_data
+  - as_interval_data_from_single
+  - is_cens_data
+
+- title: Descriptive statistics
+  desc: Non-parametric and semi-parametric summaries of censored data.
+  contents:
+  - desc_np
+  - quantile.cens_np_fit
+  - plot.cens_np_fit
+  - desc_sp
+  - plot.cens_sp_fit
+
+- title: Imputation
+  desc: Per-cell bounds and Gibbs-sampler imputation.
+  contents:
+  - build_bounds
+  - is_cens_bounds
+  - gsimp_impute
+  - rnorm_trunc

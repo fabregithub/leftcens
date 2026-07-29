@@ -15,6 +15,8 @@ Description: Tools for analytical and environmental measurement data with a
     per-observation censoring bounds. Classic single-limit (Helsel-style)
     left censoring is handled as a degenerate case of the same model.
 License: MIT + file LICENSE
+URL: https://github.com/fabregithub/leftcens, https://fabregithub.github.io/leftcens/
+BugReports: https://github.com/fabregithub/leftcens/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0

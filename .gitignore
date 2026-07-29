@@ -7,3 +7,4 @@ inst/doc
 /Meta/
 *.tar.gz
 *.Rcheck/
+docs

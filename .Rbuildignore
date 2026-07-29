@@ -1,3 +1,6 @@
 ^LICENSE\.md$
 ^package_design_note\.md$
 ^README\.Rmd$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
