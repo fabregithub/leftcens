@@ -1,3 +1,12 @@
+# leftcens (development version)
+
+* `gsimp_impute()` gains an experimental `imp_model = "tobit"`: an
+  interval-censored Gaussian conditional model (via `survival::survreg()`) fit
+  on observed *and* censored rows. Unlike the observed-only models it is not
+  subject to the selection bias of fitting on the (upper-truncated) detected
+  values, and in simulation it removes essentially all of the mean-recovery bias
+  even at heavy censoring. It falls back to ridge for wide or thin designs.
+
 # leftcens 0.1.0
 
 First release. Descriptive statistics and imputation for left- and

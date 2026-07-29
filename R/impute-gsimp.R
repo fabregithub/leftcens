@@ -160,17 +160,78 @@ glmnet_predict <- function(yo, Xo, Xm) {
   list(mean = pred, sd = sdr)
 }
 
+#' Censored (Tobit) conditional model
+#'
+#' Unlike the observed-only models, this fits the analyte's conditional
+#' distribution on ALL rows using an interval-censored Gaussian regression
+#' (`survival::survreg`, `dist = "gaussian"`): observed rows enter as exact
+#' values, censored rows as their `(lo, hi)` interval. This removes the
+#' selection bias that arises from fitting only on the (upper-truncated)
+#' observed values. Falls back to ridge when the design is too wide/thin for a
+#' Tobit fit, or if `survreg` fails to converge.
+#'
+#' Takes the full per-column context list (see `gsimp_impute`'s loop), not the
+#' `(yo, Xo, Xm)` triple the observed-only models use.
+#' @keywords internal
+#' @noRd
+tobit_predict <- function(ctx) {
+  X <- ctx$X_all
+  n <- nrow(X)
+  pX <- ncol(X)
+  ridge_fallback <- function() {
+    ridge_predict(ctx$y_obs, ctx$X_obs, ctx$X_mis)
+  }
+  # Tobit needs conditioning columns, enough uncensored info, and n > p.
+  if (pX == 0 || sum(ctx$obs) < 3 || n <= pX + 2) return(ridge_fallback())
+
+  # Interval-censored response on the working (log) scale: exact where observed,
+  # (lo, hi) where censored. survreg's interval2 uses NA for an open endpoint.
+  left <- ifelse(ctx$obs, ctx$y_all, ctx$lo_j)
+  right <- ifelse(ctx$obs, ctx$y_all, ctx$hi_j)
+  left[is.infinite(left) & left < 0] <- NA     # -Inf lower -> left-censored
+  right[is.infinite(right) & right > 0] <- NA  #  Inf upper -> right-censored
+
+  cn <- paste0("x", seq_len(pX))
+  pred_df <- as.data.frame(X)
+  names(pred_df) <- cn
+  resp <- survival::Surv(left, right, type = "interval2")
+
+  fit <- tryCatch(
+    suppressWarnings(
+      survival::survreg(resp ~ ., data = pred_df, dist = "gaussian")
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(fit) || !is.finite(fit$scale) || fit$scale <= 0) {
+    return(ridge_fallback())
+  }
+
+  new_df <- as.data.frame(ctx$X_mis)
+  names(new_df) <- cn
+  lp <- as.numeric(stats::predict(fit, newdata = new_df, type = "lp"))
+  if (any(!is.finite(lp))) return(ridge_fallback())
+  list(mean = lp, sd = fit$scale)
+}
+
+#' Resolve `imp_model` to a function taking the per-column context list.
+#'
+#' Observed-only models (`ridge`/`lm`/`glmnet`) and user-supplied functions keep
+#' the `(yo, Xo, Xm)` contract and are wrapped to read those from the context;
+#' `tobit` receives the full context (it needs the censored rows' bounds).
 #' @keywords internal
 #' @noRd
 resolve_imp_model <- function(imp_model) {
-  if (is.function(imp_model)) return(imp_model)
+  if (is.function(imp_model)) {
+    return(function(ctx) imp_model(ctx$y_obs, ctx$X_obs, ctx$X_mis))
+  }
   switch(
     imp_model,
-    ridge = ridge_predict,
-    lm = lm_predict,
-    glmnet = glmnet_predict,
-    stop("`imp_model` must be \"ridge\", \"lm\", \"glmnet\", or a function.",
-         call. = FALSE)
+    ridge = function(ctx) ridge_predict(ctx$y_obs, ctx$X_obs, ctx$X_mis),
+    lm = function(ctx) lm_predict(ctx$y_obs, ctx$X_obs, ctx$X_mis),
+    glmnet = function(ctx) glmnet_predict(ctx$y_obs, ctx$X_obs, ctx$X_mis),
+    tobit = tobit_predict,
+    stop("`imp_model` must be \"ridge\", \"lm\", \"glmnet\", \"tobit\", ",
+         "or a function.", call. = FALSE)
   )
 }
 
@@ -240,8 +301,11 @@ initialise_cells <- function(data, lo, hi, miss, initial) {
 #'   `"qrilc"` (quantile-regression left-censored imputation, requires the
 #'   'imputeLCMD' package, then clamped into bounds).
 #' @param imp_model Conditional model: `"ridge"` (default, base-R ridge
-#'   regression), `"lm"`, `"glmnet"` (elastic net, requires 'glmnet'), or a
-#'   custom `function(yo, Xo, Xm)` returning `list(mean, sd)`.
+#'   regression), `"lm"`, `"glmnet"` (elastic net, requires 'glmnet'), `"tobit"`
+#'   (interval-censored Gaussian regression via [survival::survreg()], fit on
+#'   observed *and* censored rows to avoid the selection bias of observed-only
+#'   models; falls back to ridge for wide/thin designs), or a custom
+#'   `function(yo, Xo, Xm)` returning `list(mean, sd)`.
 #' @param n_cores Reserved for future parallel sweeps; currently only serial
 #'   execution is implemented (a value `> 1` emits a message and runs serially).
 #' @param verbose If `TRUE`, report progress per sweep.
@@ -304,9 +368,20 @@ gsimp_impute <- function(x, iters_all = 10, iters_each = 1,
         next
       }
 
+      obs_j <- !miss[, j]
       for (it in seq_len(iters_each)) {
-        pr <- model_fn(cur[oj, j], Xall[oj, , drop = FALSE],
-                       Xall[mj, , drop = FALSE])
+        ctx <- list(
+          y_obs = cur[oj, j],
+          X_obs = Xall[oj, , drop = FALSE],
+          X_mis = Xall[mj, , drop = FALSE],
+          X_all = Xall,
+          y_all = cur[, j],
+          obs = obs_j,
+          lo_j = lo[, j],
+          hi_j = hi[, j],
+          mis_idx = mj
+        )
+        pr <- model_fn(ctx)
         cur[mj, j] <- rnorm_trunc(length(mj), pr$mean, pr$sd,
                                   lo[mj, j], hi[mj, j])
       }

@@ -31,8 +31,11 @@ from each analyte's observed mean/sd, truncated to the cell interval) or
 'imputeLCMD' package, then clamped into bounds).}
 
 \item{imp_model}{Conditional model: \code{"ridge"} (default, base-R ridge
-regression), \code{"lm"}, \code{"glmnet"} (elastic net, requires 'glmnet'), or a
-custom \verb{function(yo, Xo, Xm)} returning \code{list(mean, sd)}.}
+regression), \code{"lm"}, \code{"glmnet"} (elastic net, requires 'glmnet'), \code{"tobit"}
+(interval-censored Gaussian regression via \code{\link[survival:survreg]{survival::survreg()}}, fit on
+observed \emph{and} censored rows to avoid the selection bias of observed-only
+models; falls back to ridge for wide/thin designs), or a custom
+\verb{function(yo, Xo, Xm)} returning \code{list(mean, sd)}.}
 
 \item{n_cores}{Reserved for future parallel sweeps; currently only serial
 execution is implemented (a value \verb{> 1} emits a message and runs serially).}

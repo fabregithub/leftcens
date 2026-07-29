@@ -104,8 +104,11 @@ all(filled[m] <= bounds$hi_mat[m] &
 
 - **`imp_model`** --- the conditional model relating each analyte to the others:
   `"ridge"` (default; base-R ridge regression, no extra dependency and always
-  solvable), `"lm"`, `"glmnet"` (elastic net, closest to the original GSimp), or
-  your own `function(yo, Xo, Xm)` returning `list(mean, sd)`.
+  solvable), `"lm"`, `"glmnet"` (elastic net, closest to the original GSimp),
+  `"tobit"` (experimental; an interval-censored Gaussian regression fit on
+  observed *and* censored rows, which avoids the selection bias of the
+  observed-only models and sharply reduces mean-recovery bias under heavy
+  censoring), or your own `function(yo, Xo, Xm)` returning `list(mean, sd)`.
 - **`iters_all`** --- the number of outer Gibbs sweeps; this is the mixing /
   convergence control. Increase it until the imputed summaries stabilise.
 - **`iters_each`** --- inner refinement draws per analyte per sweep. This only
