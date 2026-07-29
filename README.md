@@ -130,6 +130,19 @@ rbind(
 - `vignette("imputation-bounds", package = "leftcens")` — the per-cell
   bounds and the Gibbs sampler, with a recovery demonstration.
 
+## How much censoring can be imputed reliably?
+
+A Monte Carlo validation study (in `validation/`) maps where imputation
+stays trustworthy. In short: imputation is reliable — small bias **and**
+calibrated 95% multiple-imputation coverage — down to roughly **75–80%
+detection (≤ ~20–25% non-detects)**. Beyond that, coverage fails before
+bias does; larger samples do *not* help (they tighten intervals around a
+slightly-biased centre, so inference gets *worse*); and inter-analyte
+correlation does not extend the range, because each analyte’s
+reliability is governed by its own detection rate. Right-skewed data is
+more forgiving than symmetric log-scale data. See the
+`imputation-bounds` vignette and `validation/README.md` for details.
+
 ## License and provenance
 
 leftcens is released under the **MIT license**.

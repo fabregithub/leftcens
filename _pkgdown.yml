@@ -3,6 +3,13 @@ url: https://fabregithub.github.io/leftcens/
 template:
   bootstrap: 5
 
+articles:
+- title: Articles
+  navbar: ~
+  contents:
+  - getting-started
+  - imputation-bounds
+
 reference:
 - title: Data model
   desc: Construct and inspect interval-censored data.
