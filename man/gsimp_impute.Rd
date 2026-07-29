@@ -9,7 +9,7 @@ gsimp_impute(
   iters_all = 10,
   iters_each = 1,
   initial = "bounds",
-  imp_model = "ridge",
+  imp_model = "tobit",
   n_cores = 1,
   verbose = FALSE
 )
@@ -30,12 +30,18 @@ from each analyte's observed mean/sd, truncated to the cell interval) or
 \code{"qrilc"} (quantile-regression left-censored imputation, requires the
 'imputeLCMD' package, then clamped into bounds).}
 
-\item{imp_model}{Conditional model: \code{"ridge"} (default, base-R ridge
-regression), \code{"lm"}, \code{"glmnet"} (elastic net, requires 'glmnet'), \code{"tobit"}
-(interval-censored Gaussian regression via \code{\link[survival:survreg]{survival::survreg()}}, fit on
-observed \emph{and} censored rows to avoid the selection bias of observed-only
-models; falls back to ridge for wide/thin designs), or a custom
-\verb{function(yo, Xo, Xm)} returning \code{list(mean, sd)}.}
+\item{imp_model}{Conditional model. \code{"tobit"} (default) is an
+interval-censored Gaussian regression via \code{\link[survival:survreg]{survival::survreg()}}, fit on
+observed \emph{and} censored rows; unlike the observed-only models it is not
+subject to the selection bias of fitting on the (upper-truncated) detected
+values, and it keeps imputation reliable to much heavier censoring (at the
+cost of being several times slower). The observed-only alternatives are
+\code{"ridge"} (base-R ridge regression, fastest and always solvable), \code{"lm"},
+and \code{"glmnet"} (elastic net, requires 'glmnet'). A custom
+\verb{function(yo, Xo, Xm)} returning \code{list(mean, sd)} is also accepted. The
+\code{"tobit"} model reduces the predictor dimension by PCA when there are more
+analytes than samples, and falls back to \code{"ridge"} if the censored fit
+cannot be formed.}
 
 \item{n_cores}{Reserved for future parallel sweeps; currently only serial
 execution is implemented (a value \verb{> 1} emits a message and runs serially).}

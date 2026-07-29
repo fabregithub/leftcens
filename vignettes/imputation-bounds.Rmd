@@ -102,13 +102,15 @@ all(filled[m] <= bounds$hi_mat[m] &
 
 ### Knobs
 
-- **`imp_model`** --- the conditional model relating each analyte to the others:
-  `"ridge"` (default; base-R ridge regression, no extra dependency and always
-  solvable), `"lm"`, `"glmnet"` (elastic net, closest to the original GSimp),
-  `"tobit"` (experimental; an interval-censored Gaussian regression fit on
+- **`imp_model`** --- the conditional model relating each analyte to the others.
+  The default `"tobit"` is an interval-censored Gaussian regression fit on
   observed *and* censored rows, which avoids the selection bias of the
-  observed-only models and sharply reduces mean-recovery bias under heavy
-  censoring), or your own `function(yo, Xo, Xm)` returning `list(mean, sd)`.
+  observed-only models and keeps imputation reliable to much heavier censoring
+  (it is several times slower, and reduces the predictor dimension by PCA when
+  analytes outnumber samples). The observed-only alternatives are `"ridge"`
+  (fastest, always solvable), `"lm"`, and `"glmnet"` (elastic net, closest to
+  the original GSimp); you may also pass your own `function(yo, Xo, Xm)`
+  returning `list(mean, sd)`.
 - **`iters_all`** --- the number of outer Gibbs sweeps; this is the mixing /
   convergence control. Increase it until the imputed summaries stabilise.
 - **`iters_each`** --- inner refinement draws per analyte per sweep. This only
@@ -160,8 +162,9 @@ rbind(
 
 Substituting the detection limit biases the analyte means upward (censoring
 removes the *low* values). The Gibbs imputation, drawing from the conditional
-distribution within each interval, tracks the true means far more closely --- and
-recovers the between-analyte correlation structure as well:
+distribution within each interval --- with the default censored (`"tobit"`)
+model --- recovers the true means with little residual bias, and recovers the
+between-analyte correlation structure as well:
 
 ```{r recovery-cor}
 off <- upper.tri(diag(p))
@@ -174,29 +177,27 @@ c(gsimp = mean(abs((cor(filled) - cor(z_true))[off])),
 A Monte Carlo study accompanies the package (`validation/`, run separately from
 the build) that maps where imputation stays trustworthy, using two criteria:
 mean bias (log scale) within 0.10 **and** 95% multiple-imputation coverage of
-the true mean at least 0.90. The headline results:
+the true mean at least 0.90.
 
-- **Detection rate around 75--80% or higher (roughly 20--25% non-detects) is
-  reliable** for both point estimates and calibrated interval inference. Below
-  that, the picture degrades quickly.
-- **Coverage fails before bias does.** Point recovery degrades gracefully, but
-  the small residual upward bias soon exceeds the (correctly narrow) MI standard
-  error, so 95% intervals stop covering. The reliable limit is therefore
-  stricter for *inference* than for *point summaries*.
-- **More samples do not rescue heavy censoring --- they make inference worse.**
-  The bias is systematic, so a larger `n` only tightens intervals around a
-  slightly-off centre. In the study, coverage at ~45% censoring fell from ~0.5
-  (n = 100) to ~0.01 (n = 300) with essentially unchanged bias.
-- **Correlation between analytes does not extend the reliable range**, because
-  each analyte's conditional model is fit on its own (upper-truncated) observed
-  values. Reliability is governed by *each analyte's own detection rate*.
-- **Distribution shape matters:** right-skewed data is more forgiving than
-  symmetric log-scale data.
+The study first characterised the *observed-only* models (e.g. `"ridge"`): they
+are reliable only to roughly **20--25% non-detects**, and beyond that fail in an
+instructive way. **Coverage fails before bias does** (a small residual upward
+bias soon exceeds the correctly-narrow MI standard error); **more samples make
+inference worse** (the bias is systematic, so larger `n` only tightens intervals
+around an off-centre estimate --- coverage at ~45% censoring fell from ~0.5 at
+n = 100 to ~0.01 at n = 300); and **correlation between analytes does not help**,
+because each analyte's model is fit on its own upper-truncated observed values.
+The common cause is that selection bias, which is exactly what the censored
+model removes.
 
-Practically: treat imputation of an analyte with more than ~25--30% non-detects
-as increasingly unreliable for calibrated inference, and prefer reporting that
-you imputed with honest uncertainty over trusting narrow intervals. See
-`validation/README.md` for the full study and how to reproduce it.
+The default `"tobit"` model, fit on observed **and** censored rows, extends the
+reliable range substantially: in a paired comparison it holds bias near zero and
+coverage near nominal down to at least **~55% non-detects**, at both small and
+large `n`. Distribution shape still matters (right-skewed data is more
+forgiving), and enough must remain observed to fit the conditional model, but in
+practice the default keeps imputation trustworthy well into moderate-to-heavy
+censoring. See `validation/README.md` for the full study and how to reproduce
+it.
 
 ## Assumptions and caveats
 

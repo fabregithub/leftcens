@@ -1,11 +1,18 @@
-# leftcens (development version)
+# leftcens 0.2.0
 
-* `gsimp_impute()` gains an experimental `imp_model = "tobit"`: an
-  interval-censored Gaussian conditional model (via `survival::survreg()`) fit
-  on observed *and* censored rows. Unlike the observed-only models it is not
-  subject to the selection bias of fitting on the (upper-truncated) detected
-  values, and in simulation it removes essentially all of the mean-recovery bias
-  even at heavy censoring. It falls back to ridge for wide or thin designs.
+* **`gsimp_impute()` now uses `imp_model = "tobit"` by default** (previously
+  `"ridge"`). The Tobit model is an interval-censored Gaussian conditional model
+  (via `survival::survreg()`) fit on observed *and* censored rows, so it is not
+  subject to the selection bias of the observed-only models that fit only on the
+  (upper-truncated) detected values. In a Monte Carlo validation it holds
+  mean-recovery bias near zero and multiple-imputation coverage near nominal
+  down to ~55% non-detects, where ridge (reliable only to ~25% non-detects) is
+  badly biased and its intervals fail to cover. **This changes default output:**
+  imputations and any downstream summaries will differ from 0.1.0 and be less
+  biased. Pass `imp_model = "ridge"` to recover the old behaviour.
+* The Tobit model reduces the predictor dimension by PCA when analytes outnumber
+  samples, so it applies to wide (e.g. metabolomics) data rather than falling
+  back to ridge. It is several times slower than ridge.
 
 # leftcens 0.1.0
 

@@ -88,8 +88,9 @@ quantile(fit, probs = c(0.1, 0.5, 0.9))
 Impute censored cells of a wide analyte matrix, drawing each value from
 within its interval. Naively substituting the detection limit biases
 means upward, since censoring removes the *low* values; the Gibbs
-sampler draws from within each interval and recovers the truth more
-closely (the more so with more, and more correlated, analytes):
+sampler draws from within each interval and — with the default censored
+(`"tobit"`) conditional model — recovers the truth with little residual
+bias:
 
 ``` r
 # correlated log-concentrations, censored below each analyte's 30th percentile
@@ -119,7 +120,7 @@ rbind(
 )
 #>               V1         V2          V3
 #> truth 0.03553965 0.05383394 0.002495512
-#> gsimp 0.11316008 0.17044958 0.095750733
+#> gsimp 0.02869838 0.09008700 0.014441831
 #> naive 0.19872789 0.25637232 0.194482835
 ```
 

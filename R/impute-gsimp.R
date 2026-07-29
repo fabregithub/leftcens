@@ -167,22 +167,28 @@ glmnet_predict <- function(yo, Xo, Xm) {
 #' (`survival::survreg`, `dist = "gaussian"`): observed rows enter as exact
 #' values, censored rows as their `(lo, hi)` interval. This removes the
 #' selection bias that arises from fitting only on the (upper-truncated)
-#' observed values. Falls back to ridge when the design is too wide/thin for a
-#' Tobit fit, or if `survreg` fails to converge.
+#' observed values.
+#'
+#' When there are more conditioning analytes than the fit can support (wide
+#' data, `p >= n`), the predictors are reduced to their leading principal
+#' components before the censored fit, rather than falling back to ridge. Ridge
+#' is used only when there is nothing to condition on, too few observed rows, or
+#' the censored fit cannot be formed.
 #'
 #' Takes the full per-column context list (see `gsimp_impute`'s loop), not the
 #' `(yo, Xo, Xm)` triple the observed-only models use.
+#' @param max_pc Maximum number of principal components retained for the
+#'   wide-data fit.
 #' @keywords internal
 #' @noRd
-tobit_predict <- function(ctx) {
+tobit_predict <- function(ctx, max_pc = 20L) {
   X <- ctx$X_all
   n <- nrow(X)
   pX <- ncol(X)
   ridge_fallback <- function() {
     ridge_predict(ctx$y_obs, ctx$X_obs, ctx$X_mis)
   }
-  # Tobit needs conditioning columns, enough uncensored info, and n > p.
-  if (pX == 0 || sum(ctx$obs) < 3 || n <= pX + 2) return(ridge_fallback())
+  if (pX == 0 || sum(ctx$obs) < 3) return(ridge_fallback())
 
   # Interval-censored response on the working (log) scale: exact where observed,
   # (lo, hi) where censored. survreg's interval2 uses NA for an open endpoint.
@@ -190,15 +196,30 @@ tobit_predict <- function(ctx) {
   right <- ifelse(ctx$obs, ctx$y_all, ctx$hi_j)
   left[is.infinite(left) & left < 0] <- NA     # -Inf lower -> left-censored
   right[is.infinite(right) & right > 0] <- NA  #  Inf upper -> right-censored
-
-  cn <- paste0("x", seq_len(pX))
-  pred_df <- as.data.frame(X)
-  names(pred_df) <- cn
   resp <- survival::Surv(left, right, type = "interval2")
+
+  # Design matrix: the predictors directly when the fit can support them,
+  # otherwise their leading principal components (handles p >= n wide data).
+  # Cap the dimension well below n so the censored fit is not overparameterised.
+  k <- min(pX, max(1L, n %/% 3L), max_pc)
+  if (pX <= k) {
+    D_all <- X
+  } else {
+    pcs <- tryCatch(
+      stats::prcomp(X, center = TRUE, scale. = FALSE, rank. = k),
+      error = function(e) NULL
+    )
+    if (is.null(pcs)) return(ridge_fallback())
+    D_all <- pcs$x[, seq_len(min(k, ncol(pcs$x))), drop = FALSE]
+  }
+
+  cn <- paste0("v", seq_len(ncol(D_all)))
+  fit_df <- as.data.frame(D_all)
+  names(fit_df) <- cn
 
   fit <- tryCatch(
     suppressWarnings(
-      survival::survreg(resp ~ ., data = pred_df, dist = "gaussian")
+      survival::survreg(resp ~ ., data = fit_df, dist = "gaussian")
     ),
     error = function(e) NULL
   )
@@ -206,7 +227,7 @@ tobit_predict <- function(ctx) {
     return(ridge_fallback())
   }
 
-  new_df <- as.data.frame(ctx$X_mis)
+  new_df <- as.data.frame(D_all[ctx$mis_idx, , drop = FALSE])
   names(new_df) <- cn
   lp <- as.numeric(stats::predict(fit, newdata = new_df, type = "lp"))
   if (any(!is.finite(lp))) return(ridge_fallback())
@@ -300,12 +321,18 @@ initialise_cells <- function(data, lo, hi, miss, initial) {
 #'   from each analyte's observed mean/sd, truncated to the cell interval) or
 #'   `"qrilc"` (quantile-regression left-censored imputation, requires the
 #'   'imputeLCMD' package, then clamped into bounds).
-#' @param imp_model Conditional model: `"ridge"` (default, base-R ridge
-#'   regression), `"lm"`, `"glmnet"` (elastic net, requires 'glmnet'), `"tobit"`
-#'   (interval-censored Gaussian regression via [survival::survreg()], fit on
-#'   observed *and* censored rows to avoid the selection bias of observed-only
-#'   models; falls back to ridge for wide/thin designs), or a custom
-#'   `function(yo, Xo, Xm)` returning `list(mean, sd)`.
+#' @param imp_model Conditional model. `"tobit"` (default) is an
+#'   interval-censored Gaussian regression via [survival::survreg()], fit on
+#'   observed *and* censored rows; unlike the observed-only models it is not
+#'   subject to the selection bias of fitting on the (upper-truncated) detected
+#'   values, and it keeps imputation reliable to much heavier censoring (at the
+#'   cost of being several times slower). The observed-only alternatives are
+#'   `"ridge"` (base-R ridge regression, fastest and always solvable), `"lm"`,
+#'   and `"glmnet"` (elastic net, requires 'glmnet'). A custom
+#'   `function(yo, Xo, Xm)` returning `list(mean, sd)` is also accepted. The
+#'   `"tobit"` model reduces the predictor dimension by PCA when there are more
+#'   analytes than samples, and falls back to `"ridge"` if the censored fit
+#'   cannot be formed.
 #' @param n_cores Reserved for future parallel sweeps; currently only serial
 #'   execution is implemented (a value `> 1` emits a message and runs serially).
 #' @param verbose If `TRUE`, report progress per sweep.
@@ -328,7 +355,7 @@ initialise_cells <- function(data, lo, hi, miss, initial) {
 #' anyNA(filled)
 #' @export
 gsimp_impute <- function(x, iters_all = 10, iters_each = 1,
-                         initial = "bounds", imp_model = "ridge",
+                         initial = "bounds", imp_model = "tobit",
                          n_cores = 1, verbose = FALSE) {
   if (!is_cens_bounds(x)) {
     stop("`x` must be a <cens_bounds> object; see `build_bounds()`.",
