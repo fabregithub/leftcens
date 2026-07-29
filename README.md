@@ -44,15 +44,11 @@ degenerate two-tier case of the same model, not a separate mode.
 ## Installation
 
 leftcens is not yet on CRAN. Install the development version from
-source:
+GitHub:
 
 ``` r
-# from a local clone
-# install.packages("devtools")
-devtools::install("path/to/leftcens")
-
-# or, once hosted in a git repository (replace with the actual path)
-# remotes::install_github("<owner>/leftcens")
+# install.packages("remotes")
+remotes::install_github("fabregithub/leftcens")
 ```
 
 ## Example
