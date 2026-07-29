@@ -16,6 +16,34 @@ Rbuildignored).
    `R CMD check` 0/0/0. Heavy runs go here on the workstation — the 10-min /
    library-path limits from the Claude Code environment do not apply.
 
+## Target (north star)
+
+**Rescue analytes with ND < 50%.** Rationale: below 50% non-detects the median
+sits at or above the detection limit, so a recoverable center always exists --
+that makes ND < 50% the natural line for "worth rescuing." Success = the default
+(tobit) meets the reliability criteria (|mean bias| <= 0.10 AND MI coverage
+>= 0.90, with the median recovered) across the whole 0 - <50% ND range, under
+realistic conditions. The 40-49% band is the hard edge; ~50% is a fragile
+boundary (the median lands on the limit), so the target is strictly < 50%.
+
+Every experiment below is measured against this target: the question is not just
+"what happens" but "does rescue still hold up to ~49% ND, and if not, under which
+conditions does it fail first?" Report the **median** (and other quantiles), not
+just the mean --- the median is the user's motivating estimand.
+
+**Baseline boundary check** (n=200, p=6, rho=0.5, symmetric, pure left-censoring,
+25 reps, M=12, tobit):
+
+| ND  | mean bias | median bias | MI coverage |
+|-----|-----------|-------------|-------------|
+| 40% | +0.006    | 0.000       | 1.00        |
+| 45% | -0.007    | 0.000       | 1.00        |
+| 49% | +0.004    | 0.000       | 0.98        |
+
+=> Target looks **achievable at baseline**. E2-E5 test whether it survives more
+variables, non-parametric correlation, skew, the DNQ tier, and heterogeneous
+limits.
+
 ## Where things stand (start-of-plan snapshot)
 
 - **Package: leftcens 0.2.0.** `gsimp_impute()` defaults to `imp_model = "tobit"`
