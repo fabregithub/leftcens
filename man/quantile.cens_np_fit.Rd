@@ -4,23 +4,41 @@
 \alias{quantile.cens_np_fit}
 \title{Quantiles of a non-parametric NPMLE fit}
 \usage{
-\method{quantile}{cens_np_fit}(x, probs = c(0.1, 0.25, 0.5, 0.75, 0.9), ...)
+\method{quantile}{cens_np_fit}(
+  x,
+  probs = c(0.1, 0.25, 0.5, 0.75, 0.9),
+  ql = x$quantitation_limit,
+  ...
+)
 }
 \arguments{
 \item{x}{A \code{cens_np_fit} object.}
 
 \item{probs}{Numeric vector of probabilities in \verb{[0, 1]}.}
 
+\item{ql}{Reporting threshold on the original scale; quantile estimates below
+\code{ql} are set to \code{NA}. Defaults to the quantitation limit stored in the fit.
+Use \code{0} or \code{NA} to keep all estimates.}
+
 \item{...}{Unused, for S3 consistency.}
 }
 \value{
-A named numeric vector of quantile estimates.
+A named numeric vector of quantile estimates, with entries below \code{ql}
+set to \code{NA}.
 }
 \description{
 Extracts quantiles (percentiles) of the estimated concentration distribution
 from a \code{\link[=desc_np]{desc_np()}} fit, on the original measurement scale.
 }
+\details{
+A quantile that falls below the quantitation limit is not reliably estimable
+--- it lies in the censored region where the fit is extrapolating --- so by
+default such quantiles are returned as \code{NA} rather than a misleading point
+value. Set \code{ql = 0} (or \code{NA}) to disable this and return the raw NPMLE
+estimates, or pass a different threshold (e.g. \code{ql = fit$detection_limit}).
+}
 \examples{
 fit <- desc_np(as_interval_data(c(0, 1, 5, 8), c(1, 3, 5, 8)))
 quantile(fit, probs = c(0.5, 0.9))
+quantile(fit, probs = c(0.5, 0.9), ql = 0)   # raw estimates, no masking
 }

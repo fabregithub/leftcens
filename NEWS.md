@@ -1,3 +1,12 @@
+# leftcens (development version)
+
+* `desc_np()` now records the `detection_limit` and `quantitation_limit` of the
+  data, and `quantile.cens_np_fit()` reports any quantile that falls below the
+  quantitation limit as `NA` (an estimate there is an extrapolation into the
+  censored region, not a reliably quantified value). Pass `ql = 0` for the raw
+  NPMLE estimates, or `ql = fit$detection_limit` to mask below the detection
+  limit instead. The `print()` method shows the limits.
+
 # leftcens 0.3.0
 
 * New `preflight_reliability()` and `preflight_from_data()`: a Monte Carlo
