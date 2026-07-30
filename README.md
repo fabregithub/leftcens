@@ -81,9 +81,16 @@ x
 
 fit <- desc_np(x)
 quantile(fit, probs = c(0.1, 0.5, 0.9))
-#>  10%  50%  90% 
-#> 0.25 1.95 4.20
+#> 10% 50% 90% 
+#>  NA  NA 4.2
 ```
+
+Quantiles that fall below the quantitation limit are reported as `NA` —
+an estimate there is an extrapolation into the censored region, not a
+reliably quantified value (pass `ql = 0` for the raw estimates). The
+descriptive fits are table-ready via `as.data.frame()` (for `gt`,
+`flextable`, `knitr::kable()`, …) and broom-style `tidy()` / `glance()`
+(for `gtsummary`, `modelsummary`, …).
 
 Impute censored cells of a wide analyte matrix, drawing each value from
 within its interval. Naively substituting the detection limit biases
