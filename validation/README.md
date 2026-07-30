@@ -163,6 +163,15 @@ tobit: a mild *negative* bias drift as `p >> n` (-0.02 -> -0.045, from PCA signa
 loss -- within target but eroding, so `max_pc` is a tunable knob), and RMSE that
 is U-shaped in `p`, minimised around `p = 12-50`. Median bias ~0 throughout.
 
+**Non-parametric (non-linear) dependence (`effect_of_dependence.R`, at 40% ND).**
+Using a shared-latent generator with orthogonal non-linear bases (`simulate_truth_nl`;
+linear |corr| ~0.29 but strong dependence), tobit still meets the target (bias
+-0.036 vs -0.005 under linear dependence); ridge fails both. Non-linear
+dependence costs *efficiency* (RMSE 0.026 -> 0.044), not validity -- consistent
+with tobit's rescue coming from the per-analyte censored likelihood rather than
+borrowed cross-analyte information. Reclaiming that efficiency would need a
+non-linear censored conditional model (future extension).
+
 These are the substantive results for a methods write-up. Grids used moderate
 replication (transition-zone coverage carries Monte Carlo SE ~+/-0.03-0.05). For
 the definitive run use higher replication on capable hardware:

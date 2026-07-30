@@ -8,9 +8,10 @@ Rbuildignored).
 
 1. `git pull`, then install so the scripts' `library(leftcens)` resolves:
    `R CMD INSTALL .` (or `devtools::install()`).
-2. **E1 and E2 are DONE** (see their result blocks below). **Next task: E3 —
-   parametric vs non-parametric correlation** (needs new DGP code: a copula /
-   non-linear dependence generator in `mc_validation.R`).
+2. **E1, E2, E3 are DONE** (see their result blocks below). **Next task: E5 —
+   the three-tier DNQ band** (the untested gap and the package's raison d'etre;
+   E4's correlation question is largely answered by E1+E3, so it drops in
+   priority). Then E4 (efficiency/interval-width), E6, E7.
 3. Then follow **Recommended order** at the bottom; every driver is
    env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params) for scaling up.
 4. Package is at **0.2.0** (tobit is the default `imp_model`); tests green,
@@ -112,15 +113,24 @@ paired ridge-vs-tobit designs (same data, only the model differs), as in
   point-metrics only for speed).
 - **Run it (higher rep):** `REPS=50 ITERS=20 Rscript validation/effect_of_p.R`
 
-### E3 — Correlation: parametric vs non-parametric dependence  (point 3)  [NOVEL ROBUSTNESS]
-- **Question:** tobit's conditional model is *linear*. Does non-linear / copula
+### E3 — Correlation: parametric vs non-parametric dependence  (point 3)  [DONE]
+- **Question:** tobit's conditional model is *linear*. Does non-linear
   dependence break it, where linear-Gaussian dependence does not?
-- **Prior:** all sims used Gaussian (linear, exchangeable) correlation.
-- **How:** needs **new DGP code** — a copula generator and/or a non-linear
-  dependence generator, added to `mc_validation.R`. Compare tobit under linear
-  vs non-linear dependence.
-- **If tobit degrades under non-linearity:** motivates a future non-linear
-  censored conditional model (spline/GAM or forest-based) — a Phase-3 extension.
+- **Generator:** `simulate_truth_nl()` in `mc_validation.R` — a shared latent
+  through orthogonal non-linear bases (Hermite H2/H3, sine, abs), giving strong
+  dependence with low linear correlation (verified: linear |corr| ~0.29 vs
+  ~0.60 for the Gaussian generator, while 2nd-moment dependence is higher).
+- **Result** (`effect_of_dependence.R`; n=150, p=6, 40% ND, 30 reps): **tobit
+  meets the target under BOTH regimes** (linear: bias -0.005, RMSE 0.026;
+  non-linear: bias -0.036, RMSE 0.044); ridge fails both. Non-linear dependence
+  does **not** break the rescue — it costs *efficiency* (RMSE 0.026 -> 0.044)
+  and a mild bias drift, not validity. Confirms tobit rescues via the
+  per-analyte censored likelihood (E1), robust to dependence *shape*. Median
+  bias 0 throughout.
+- **Follow-up / extension:** a **non-linear censored conditional model**
+  (spline/GAM or forest-based, interval-censored) could reclaim the efficiency
+  lost under non-linear dependence — a Phase-3 methodological extension.
+- **Run it (higher rep):** `REPS=100 ITERS=25 Rscript validation/effect_of_dependence.R`
 
 ### E4 — Censoring rate x correlation interaction under tobit  (point 4)
 - **Question:** does correlation help tobit at high censoring (where it was

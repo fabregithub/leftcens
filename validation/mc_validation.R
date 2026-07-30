@@ -53,6 +53,56 @@ simulate_truth <- function(n, p, rho, mu = NULL, sd = 1, skew = 0) {
   sweep(z * sd, 2, mu, "+")                    # n x p, log scale
 }
 
+#' Simulate ground truth with NON-PARAMETRIC (non-linear) dependence.
+#'
+#' All analytes are driven by a shared standard-normal latent through different
+#' *non-linear* basis functions, plus idiosyncratic noise. The default bases are
+#' the (orthogonal) Hermite polynomials H2, H3 and the standardised sine and
+#' absolute-value maps, none of which is the identity -- so the analytes are
+#' strongly dependent (common latent) yet have near-zero pairwise *linear*
+#' correlation. This is the stress test for the linear conditional model in
+#' `imp_model = "tobit"`: a linear regression cannot see the dependence, whereas
+#' a non-parametric model could.
+#'
+#' Margins are standardised to mean `mu[j]`, sd `sd` (unit by default), matching
+#' [simulate_truth()] so censoring at a given quantile yields comparable
+#' non-detect fractions.
+#'
+#' @param n,p,mu,sd As in [simulate_truth()].
+#' @param strength Weight (in `[0, 1]`) of the shared latent signal vs.
+#'   idiosyncratic noise; analogous to correlation strength. Higher = stronger
+#'   (non-linear) dependence.
+#' @param forms Optional character vector of basis names cycled across analytes;
+#'   any of `"lin"`, `"quad"`, `"cub"`, `"sine"`, `"abs"`. Default cycles the
+#'   four non-linear bases (excludes `"lin"`), maximising non-linearity.
+#' @return An `n x p` log-scale matrix.
+simulate_truth_nl <- function(n, p, strength = 0.6, mu = NULL, sd = 1,
+                              forms = NULL) {
+  if (is.null(mu)) mu <- seq(0, 1.5, length.out = p)
+  mu <- rep_len(mu, p)
+  strength <- min(max(strength, 0), 1)
+
+  u <- stats::rnorm(n)                       # shared latent
+  std <- function(g) (g - mean(g)) / stats::sd(g)   # empirical unit variance
+  basis <- list(
+    lin  = function(z) z,                    # identity (linear) -- excluded by default
+    quad = function(z) (z^2 - 1) / sqrt(2),  # Hermite H2 (unit var)
+    cub  = function(z) (z^3 - 3 * z) / sqrt(6),  # Hermite H3 (unit var)
+    sine = function(z) std(sin(2 * z)),
+    abs  = function(z) std(abs(z))
+  )
+  if (is.null(forms)) forms <- c("quad", "cub", "sine", "abs")
+  forms <- rep(forms, length.out = p)
+
+  X <- matrix(0, n, p)
+  for (j in seq_len(p)) {
+    g <- basis[[forms[j]]](u)                # unit-variance non-linear signal
+    X[, j] <- mu[j] + sd * (sqrt(strength) * g +
+                              sqrt(1 - strength) * stats::rnorm(n))
+  }
+  X
+}
+
 #' Censor a log-scale truth matrix into the three-tier interval structure.
 #'
 #' Per analyte, `nd_frac` of values fall below the MDL (non-detect) and a further
