@@ -43,3 +43,11 @@ reference:
   contents:
   - preflight_reliability
   - preflight_from_data
+
+- title: Tidiers
+  desc: broom-style tidy() / glance() for the descriptive fits.
+  contents:
+  - tidy.cens_np_fit
+  - glance.cens_np_fit
+  - tidy.cens_sp_fit
+  - glance.cens_sp_fit

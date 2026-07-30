@@ -4,6 +4,10 @@
   data frames (a quantile table and a coefficient table, respectively), so a
   descriptive summary can be passed directly to a table-formatting package such
   as `gt`, `flextable`, `knitr::kable()`, or `DT`.
+* broom-style `tidy()` and `glance()` methods for `desc_np()` and `desc_sp()`
+  fits (via the lightweight `generics` package), for tidyverse-ecosystem
+  integration (e.g. `gtsummary`, `modelsummary`). `tidy()` gives the
+  component-level table; `glance()` a one-row model summary.
 * `desc_np()` now records the `detection_limit` and `quantitation_limit` of the
   data, and `quantile.cens_np_fit()` reports any quantile that falls below the
   quantitation limit as `NA` (an estimate there is an extrapolation into the
