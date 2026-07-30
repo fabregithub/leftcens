@@ -126,10 +126,32 @@ all(filled[m] <= bounds$hi_mat[m] &
 ```
 
 Imputed values are on the log scale (matching `log_transform = TRUE`);
-exponentiate for original units. For a full assessment tailored to *your* study
-design --- your `n`, analyte count, correlation, censoring pattern --- adapt the
-drivers in `validation/`, which simulate a design and report the bias and
-coverage you can expect before you trust imputation on the real data.
+exponentiate for original units.
+
+### A pre-flight reliability check
+
+For a fuller assessment tailored to *your* design, `preflight_from_data()`
+reads the non-detect fractions from your `cens_data`, estimates the correlation
+and marginals, then simulates many datasets like yours, imputes them, and
+reports the bias and 95% coverage you can expect --- flagging which analytes are
+reliably imputable. (It is a Monte Carlo procedure, so it takes a little time;
+increase `n_rep` / `M` for more precise estimates.)
+
+```{r preflight, eval = FALSE}
+preflight_from_data(analytes, n_rep = 30, M = 20)
+#> <preflight> reliability for 3 analytes, n = 80 (tobit model)
+#>   reliable if |bias| <= 0.10 AND coverage >= 0.90 AND ND < 50%
+#>
+#>  analyte nd_frac mean_bias median_bias  rmse coverage reliable
+#>        1    0.30    ...         ...      ...     ...      TRUE
+#>        ...
+#> Verdict: 3 of 3 analytes reliably imputable.
+```
+
+Or describe a design directly with `preflight_reliability(n, nd_frac, ...)`
+without any data in hand --- useful when planning a study. The reproducible
+Monte Carlo study behind these recommendations lives in the source
+`validation/` directory.
 
 ## Caveats
 

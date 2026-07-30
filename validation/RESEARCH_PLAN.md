@@ -8,12 +8,12 @@ Rbuildignored).
 
 1. `git pull`, then install so the scripts' `library(leftcens)` resolves:
    `R CMD INSTALL .` (or `devtools::install()`).
-2. **E1, E2, E3, E5, E6 and D2 are DONE.** Sensitivity + convergence confirm the
-   ND<50% target holds for tobit with `iters_all=10`, `M=20`; the guidance
-   vignette (`vignettes/imputation-guidance.Rmd`) is written. **Next: D3 --
-   the pre-flight reliability tool** (a `leftcens` function that simulates a
-   user's own design and reports expected bias/coverage). E7 (runtime) is a
-   quick input; the definitive high-rep run (D1) belongs on the workstation.
+2. **E1, E2, E3, E5, E6, D2 and D3 are DONE.** Sensitivity + convergence confirm
+   the ND<50% target; the guidance vignette and the pre-flight tool
+   (`preflight_reliability()` / `preflight_from_data()`) are shipped. **Next:
+   optional E7 (runtime numbers, a quick input to the guidance) and E4
+   (efficiency); the definitive high-rep run (D1) on the workstation; and, when
+   ready, a v0.3.0 release.** The core research program is essentially complete.
 3. Then follow **Recommended order** at the bottom; every driver is
    env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params) for scaling up.
 4. Package is at **0.2.0** (tobit is the default `imp_model`); tests green,
@@ -180,13 +180,15 @@ tobit; reliable to ~50% ND; `iters_all=10`/`M=20`; co-impute ~12-50 analytes;
 model-choice notes; a runnable per-analyte ND-fraction self-check; and caveats.
 On the pkgdown Articles menu. Fold in E7 (runtime numbers) when available.
 
-### D3 — Pre-flight reliability tool  (point 7, reading A)
-Package the harness so a user can **simulate data matching their own study
-design** (their `n`, `p`, correlation structure, per-analyte censoring pattern,
-skew) and get a reliability read (bias / MI coverage) **before** trusting
-imputation on the real data. E.g. a `leftcens` function like
-`preflight_reliability(design_spec, ...)` or a templated validation vignette the
-user fills in with their design. Turns the internal study into a
+### D3 — Pre-flight reliability tool  (point 7, reading A)  [DONE]
+Done: exported `preflight_reliability(n, nd_frac, ...)` (design spec) and
+`preflight_from_data(x, ...)` (derives the design from a user's `cens_data` by
+reading the non-detect fractions and estimating correlation/marginals from a
+quick imputation). Both run a Monte Carlo that simulates datasets like the
+design, imputes them, and report per-analyte bias / median bias / RMSE / MI
+coverage with a `reliable` flag (|bias| <= tol, coverage >= tol, ND < 50%) and a
+printed verdict. Tested (`test-preflight.R`); referenced from the guidance
+vignette and the pkgdown reference. Turns the internal study into a
 "test-it-on-your-design-first" workflow.
 
 ## Division of labour

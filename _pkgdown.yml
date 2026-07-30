@@ -35,3 +35,9 @@ reference:
   - is_cens_bounds
   - gsimp_impute
   - rnorm_trunc
+
+- title: Reliability
+  desc: Pre-flight check of whether imputation is trustworthy for a design.
+  contents:
+  - preflight_reliability
+  - preflight_from_data

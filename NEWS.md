@@ -1,3 +1,15 @@
+# leftcens (development version)
+
+* New `preflight_reliability()` and `preflight_from_data()`: a Monte Carlo
+  pre-flight that simulates a study design (or reads it from your `cens_data`),
+  imputes it, and reports the per-analyte bias and multiple-imputation coverage
+  you can expect --- flagging which analytes are reliably imputable (small bias,
+  calibrated coverage, and non-detects below 50%) before you trust imputation on
+  real data.
+* New vignette "How much can you trust the imputation?" with practical guidance
+  (model choice, `iters_all`/`M`, the ND < 50% reliability target, and caveats),
+  synthesising the Monte Carlo validation study.
+
 # leftcens 0.2.0
 
 * **`gsimp_impute()` now uses `imp_model = "tobit"` by default** (previously
