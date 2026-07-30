@@ -8,8 +8,9 @@ Rbuildignored).
 
 1. `git pull`, then install so the scripts' `library(leftcens)` resolves:
    `R CMD INSTALL .` (or `devtools::install()`).
-2. **E1 is DONE** (tobit arm added to `heterogeneous_limits.R`; see the E1
-   result below). **Next task: E2 — number of variables / PCA regime.**
+2. **E1 and E2 are DONE** (see their result blocks below). **Next task: E3 —
+   parametric vs non-parametric correlation** (needs new DGP code: a copula /
+   non-linear dependence generator in `mc_validation.R`).
 3. Then follow **Recommended order** at the bottom; every driver is
    env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params) for scaling up.
 4. Package is at **0.2.0** (tobit is the default `imp_model`); tests green,
@@ -95,14 +96,21 @@ paired ridge-vs-tobit designs (same data, only the model differs), as in
   affect *bias*. Test with an RMSE / interval-width metric in E3/E4.
 - **Run it (higher rep):** `N_REP=200 M=25 Rscript validation/heterogeneous_limits.R`
 
-### E2 — Number of variables k (= p) imputed together  (point 2)  [NEW]
+### E2 — Number of variables k (= p) imputed together  (point 2)  [DONE]
 - **Question:** how does recovery behave as `p` grows and crosses `p ≈ n`, where
-  the PCA reduction engages? Does it degrade gracefully at `p >> n`? Do more
-  (informative) analytes help tobit (unlike ridge)?
-- **Prior:** only `p in {5,15}` tested, ridge only (minor effect).
-- **How:** grid over `p` (e.g. 3, 6, 12, 25, 50, 100, 200) at fixed `n`, both
-  models; watch the narrow -> PCA transition and the PCA `max_pc`/`k` behaviour.
-  New driver, reuses the engine.
+  the PCA reduction engages? Does it degrade gracefully at `p >> n`?
+- **Result** (`effect_of_p.R`; n=100, rho=0.5, 40% ND, 12 reps, p=3..200):
+  **the rescue is robust to variable count — tobit meets the target
+  (|mean bias| <= 0.10) at every p, including p=200 (p/n=2, PCA regime)**, while
+  ridge fails at all p and worsens with p (0.16 -> 0.28). Median bias ~0
+  throughout (< 50% ND). Two nuances: (a) tobit shows a mild *negative* bias
+  drift as p >> n (-0.02 at p=3 -> -0.045 at p=200) from PCA signal loss --
+  within target but eroding; (b) **RMSE is U-shaped in p, minimised ~p=12-50**
+  (0.014) -- too few analytes = weak model, too many = PCA truncation.
+- **Follow-ups:** tune the PCA `max_pc` cap (currently 20) to reduce the wide-p
+  overcorrection; add MI coverage at a few large-p points (this sweep was
+  point-metrics only for speed).
+- **Run it (higher rep):** `REPS=50 ITERS=20 Rscript validation/effect_of_p.R`
 
 ### E3 — Correlation: parametric vs non-parametric dependence  (point 3)  [NOVEL ROBUSTNESS]
 - **Question:** tobit's conditional model is *linear*. Does non-linear / copula

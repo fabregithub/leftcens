@@ -156,6 +156,13 @@ so the rescue is not via the anchors but via tobit's per-analyte censored
 likelihood. Correlation is expected to affect tobit's *efficiency* (interval
 width), not its bias; that is the open follow-up.
 
+**Effect of the number of variables (`effect_of_p.R`, at 40% ND).** tobit meets
+the ND<50% target at every `p` from 3 to 200 (`p/n` up to 2, into the PCA
+regime), while ridge fails at all `p` and worsens as `p` grows. Two nuances for
+tobit: a mild *negative* bias drift as `p >> n` (-0.02 -> -0.045, from PCA signal
+loss -- within target but eroding, so `max_pc` is a tunable knob), and RMSE that
+is U-shaped in `p`, minimised around `p = 12-50`. Median bias ~0 throughout.
+
 These are the substantive results for a methods write-up. Grids used moderate
 replication (transition-zone coverage carries Monte Carlo SE ~+/-0.03-0.05). For
 the definitive run use higher replication on capable hardware:
