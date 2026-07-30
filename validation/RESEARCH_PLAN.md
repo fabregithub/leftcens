@@ -8,12 +8,12 @@ Rbuildignored).
 
 1. `git pull`, then install so the scripts' `library(leftcens)` resolves:
    `R CMD INSTALL .` (or `devtools::install()`).
-2. **E1, E2, E3, E5 are DONE** (see their result blocks below). The sensitivity
-   analyses all confirm the ND<50% target holds for tobit. **Next: pivot to the
-   deliverables** -- D2 (guidance) and D3 (pre-flight tool) -- and/or the cheap
-   remaining refinements E6 (convergence) and E7 (runtime). E4 (efficiency /
-   interval-width) is low priority (E1+E3 answered the correlation question).
-   The definitive high-rep run (D1) belongs on the workstation.
+2. **E1, E2, E3, E5, E6 are DONE** (see their result blocks below). The
+   sensitivity + convergence work all confirms the ND<50% target holds for
+   tobit with `iters_all=10`, `M=20`. **Next: pivot to the deliverables** --
+   D2 (guidance) and D3 (pre-flight tool). E7 (runtime) is a quick remaining
+   input to D2; E4 (efficiency) is low priority. The definitive high-rep run
+   (D1) belongs on the workstation.
 3. Then follow **Recommended order** at the bottom; every driver is
    env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params) for scaling up.
 4. Package is at **0.2.0** (tobit is the default `imp_model`); tests green,
@@ -155,8 +155,12 @@ paired ridge-vs-tobit designs (same data, only the model differs), as in
   belongs on the *non-detect* fraction alone (ND < 50%); DNQ mass above the
   median does not break recovery. Run higher-rep:
   `REPS=100 ITERS=25 Rscript validation/effect_of_dnq.R`.
-- **E6 — Convergence guidance.** How large must `M` (imputations) and
-  `iters_all` (sweeps) be for stable bias/coverage? Cheap; needed for E-guidance.
+- **E6 — Convergence guidance. [DONE]** `effect_of_convergence.R` (tobit, 40%
+  ND). Point bias/RMSE plateau by **iters_all ~ 3-5** (tobit settles fast --
+  stable censored-likelihood fit); MI coverage flat across M, interval width
+  settles by **M ~ 10-20**. Recommendation: `iters_all = 10`, `M = 20` are
+  ample at target-edge conditions. Harder regimes (heavier censoring, wider p)
+  may need more, but these defaults are safe.
 - **E7 — Runtime / scalability.** Profile tobit vs ridge vs `p`/`n` (tobit is
   ~8x ridge; PCA adds cost). Feeds the guidance's compute recommendations.
 
