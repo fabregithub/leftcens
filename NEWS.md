@@ -1,4 +1,4 @@
-# leftcens (development version)
+# leftcens 0.3.0
 
 * New `preflight_reliability()` and `preflight_from_data()`: a Monte Carlo
   pre-flight that simulates a study design (or reads it from your `cens_data`),
