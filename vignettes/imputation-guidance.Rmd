@@ -1,0 +1,144 @@
+---
+title: "How much can you trust the imputation?"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{How much can you trust the imputation?}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+set.seed(1)
+```
+
+```{r setup}
+library(leftcens)
+```
+
+This vignette gives practical guidance for `gsimp_impute()`: which model to use,
+how to set the knobs, how much censoring you can impute through, and how to
+sanity-check your own data. It summarises a Monte Carlo validation study that
+ships with the package source (in `validation/`); the numbers below come from
+that study and are directional (moderate replication) --- see
+`validation/RESEARCH_PLAN.md` for the full design and the definitive-run recipe.
+
+## The short version
+
+- **Use the default model (`imp_model = "tobit"`).** It fits an
+  interval-censored regression on observed *and* censored rows, so it is not
+  fooled by the fact that censored values are the small ones.
+- **You can reliably impute an analyte with up to ~50% non-detects.** Below 50%
+  ND the median is still directly estimable, and in simulation the default model
+  keeps the mean essentially unbiased and its intervals calibrated across that
+  whole range.
+- **Defaults are ample:** `iters_all = 10` sweeps and `M = 20` imputations.
+- **Co-impute a moderate set of analytes** (roughly 10-50) for best precision,
+  though the method is valid well outside that range.
+- **Work on the log scale** (`log_transform = TRUE`, the default).
+
+## The reliability target: ND < 50%
+
+The natural line is the **non-detect fraction**. If fewer than half an analyte's
+values are non-detects, its median sits at or above the detection limit and is
+directly recoverable; that makes ND < 50% the sensible boundary for "worth
+imputing." We call an analyte *reliably imputed* when the mean bias is small
+(|bias| <= 0.10 on the log scale) **and** the 95% multiple-imputation interval
+covers the truth ~95% of the time.
+
+In the validation study the default model met both criteria up to ~49% ND, with
+the median recovered exactly (it is not even censored below 50% ND). The
+observed-only models (`ridge`, `lm`, `glmnet`) only reach ~25% ND before their
+intervals stop covering --- which is why `tobit` is the default.
+
+## What the validation established
+
+Across a range of conditions, the default (`tobit`) held the ND < 50% target;
+the observed-only models did not. Summary of the drivers in `validation/`:
+
+| Question | Finding for `tobit` |
+|---|---|
+| Correlation strength | Rescue holds even at zero correlation --- it comes from the per-analyte censored fit, not borrowed information. |
+| Number of analytes (`p`) | Holds from `p = 3` up to `p = 200` (`p/n = 2`, PCA regime). RMSE is lowest around `p = 12-50`. |
+| Non-linear dependence | Rescue holds; unmodelled non-linear dependence costs *precision* (RMSE), not validity. |
+| Detected-not-quantified band | Holds as the DNQ band widens; the median is recovered even when it falls inside the interval-censored band. |
+| Convergence | Point estimates settle by `iters_all ~ 3-5`; interval width by `M ~ 10-20`. |
+
+The one consistent cost is **efficiency, not bias**: when dependence is
+non-linear the intervals are wider than they need to be (mildly conservative),
+because the linear conditional model cannot exploit that dependence.
+
+## Choosing the settings
+
+**`imp_model`.** Keep the default `"tobit"` unless you have a specific reason:
+
+- `"tobit"` --- interval-censored Gaussian; the reliable choice, several times
+  slower than ridge. Reduces predictors by PCA when analytes outnumber samples.
+- `"ridge"` --- fast, always solvable; use for a quick look or when you only
+  need a rough fill and know censoring is light (< ~25% ND).
+- `"glmnet"` --- elastic net, closest to the original GSimp; needs the package.
+- a custom `function(yo, Xo, Xm)` returning `list(mean, sd)`.
+
+**`iters_all` (Gibbs sweeps) and `M` (imputations).** `iters_all = 10` and
+`M = 20` are ample at target-edge censoring; heavier regimes may warrant more.
+
+**How many analytes to co-impute.** Impute related analytes together --- the
+conditional model borrows strength across them. Precision was best in the
+`p = 12-50` range; very few analytes give a weak model, very many (`p >> n`)
+lose a little to the PCA reduction, but both remain valid.
+
+## Sanity-check your own data
+
+The target is per-analyte, so first check each analyte's non-detect fraction.
+`cens_data` already classifies every observation, so this is one line:
+
+```{r nd-fraction}
+# a small example: three analytes with 30% / 45% / 20% non-detects
+set.seed(1)
+n <- 80
+z <- matrix(rnorm(n * 3), n, 3) %*% chol(matrix(0.5, 3, 3) + diag(0.5, 3))
+conc <- exp(sweep(z, 2, c(0, 0.5, 1.0), "+"))
+nd_target <- c(0.30, 0.45, 0.20)
+analytes <- lapply(seq_len(3), function(j) {
+  lim <- stats::quantile(conc[, j], nd_target[j])
+  as_interval_data(ifelse(conc[, j] < lim, 0, conc[, j]),
+                   ifelse(conc[, j] < lim, lim, conc[, j]))
+})
+
+nd_fraction <- function(x) mean(x$category == "non_detect")
+vapply(analytes, nd_fraction, numeric(1))
+```
+
+Analytes at or above 50% ND are outside the reliable range --- report those with
+extra caution (or only their upper-bounded summaries) rather than trusting a
+point imputation. Then impute the rest together:
+
+```{r impute}
+bounds <- build_bounds(analytes)
+bounds
+
+filled <- gsimp_impute(bounds, iters_all = 10)   # tobit by default
+
+# every imputed value lands inside its interval, by construction
+m <- bounds$to_impute
+all(filled[m] <= bounds$hi_mat[m] &
+      (is.infinite(bounds$lo_mat[m]) | filled[m] >= bounds$lo_mat[m]))
+```
+
+Imputed values are on the log scale (matching `log_transform = TRUE`);
+exponentiate for original units. For a full assessment tailored to *your* study
+design --- your `n`, analyte count, correlation, censoring pattern --- adapt the
+drivers in `validation/`, which simulate a design and report the bias and
+coverage you can expect before you trust imputation on the real data.
+
+## Caveats
+
+- **> 50% ND:** below the target line; the median itself is censored and point
+  imputation is no longer dependable. Prefer interval-censored *descriptive*
+  summaries (`desc_np()`, `desc_sp()`) over imputed point values.
+- **Very small `n`:** with only a handful of observed values per analyte the
+  conditional fit is unstable regardless of model.
+- **Strongly non-linear dependence:** valid but less precise (wider intervals);
+  a non-linear censored model is a planned extension.
+- These figures are from a simulation study; validate against your own design
+  before relying on imputation for inference.

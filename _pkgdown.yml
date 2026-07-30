@@ -9,6 +9,7 @@ articles:
   contents:
   - getting-started
   - imputation-bounds
+  - imputation-guidance
 
 reference:
 - title: Data model
