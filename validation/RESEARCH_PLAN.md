@@ -161,8 +161,11 @@ paired ridge-vs-tobit designs (same data, only the model differs), as in
   settles by **M ~ 10-20**. Recommendation: `iters_all = 10`, `M = 20` are
   ample at target-edge conditions. Harder regimes (heavier censoring, wider p)
   may need more, but these defaults are safe.
-- **E7 — Runtime / scalability.** Profile tobit vs ridge vs `p`/`n` (tobit is
-  ~8x ridge; PCA adds cost). Feeds the guidance's compute recommendations.
+- **E7 — Runtime / scalability. [DONE]** `effect_of_runtime.R`. tobit is ~6-11x
+  ridge per `gsimp_impute` call; sub-second for n<=300, p<=20; ~3s at
+  (n=300, p=50), ~5s at (n=100, p=100). For multiple imputation multiply by
+  ~(M+1). Practical: tobit is affordable for typical analyses; use ridge for
+  quick looks on very wide/large problems. ridge stays fast throughout.
 
 ## Deliverables
 
