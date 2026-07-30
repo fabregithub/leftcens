@@ -1,6 +1,11 @@
 # Design Note: `leftcens` — Left-Censored / Interval-Censored Descriptive Stats and Imputation Package
 
-**Status:** Naming decided — package name is **`leftcens`**.
+**Status:** Implemented and released — **`leftcens` v0.3.0**
+(https://github.com/fabregithub/leftcens). All modules in this note are built,
+tested, and documented; the default imputation model is the censored **tobit**
+conditional model, validated to rescue analytes with < 50% non-detects (see
+`validation/`). This note is the original design record; current usage lives in
+the package docs and vignettes.
 
 ### Naming history
 
