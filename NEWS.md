@@ -1,4 +1,4 @@
-# leftcens (development version)
+# leftcens 0.4.0
 
 * `as.data.frame()` methods for `desc_np()` and `desc_sp()` fits return tidy
   data frames (a quantile table and a coefficient table, respectively), so a
