@@ -9,8 +9,6 @@ on:
   pull_request:
     paths-ignore:
       - 'validation/**'
-  release:
-    types: [published]
   workflow_dispatch:
 
 name: pkgdown.yaml
