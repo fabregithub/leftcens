@@ -25,8 +25,10 @@ reference:
   - desc_np
   - quantile.cens_np_fit
   - plot.cens_np_fit
+  - as.data.frame.cens_np_fit
   - desc_sp
   - plot.cens_sp_fit
+  - as.data.frame.cens_sp_fit
 
 - title: Imputation
   desc: Per-cell bounds and Gibbs-sampler imputation.

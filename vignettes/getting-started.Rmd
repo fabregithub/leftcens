@@ -130,6 +130,32 @@ nd <- data.frame(covariate = factor(c("A", "B")))
 plot(sp, newdata = nd)
 ```
 
+## Formatting results as a table
+
+Both descriptive fits have an `as.data.frame()` method that returns a tidy
+data frame, so the summary drops straight into any table-formatting package ---
+`knitr::kable()`, `gt`, `flextable`, `DT`, and so on. The non-parametric fit
+gives a quantile table (with `NA` below the quantitation limit):
+
+```{r as-df-np}
+as.data.frame(fit)
+```
+
+```{r kable-np}
+knitr::kable(as.data.frame(fit), digits = 2,
+             caption = "Estimated concentration quantiles")
+```
+
+The semi-parametric fit gives a coefficient table (hazard or odds ratios, with
+standard errors and p-values when fitted with `bs_samples > 0`):
+
+```{r as-df-sp}
+as.data.frame(sp_bs)
+```
+
+From here, `gt::gt(as.data.frame(fit))` or
+`flextable::flextable(as.data.frame(sp_bs))` produce publication-ready tables.
+
 ## Imputation
 
 The second half of the package imputes the censored cells of a wide analyte

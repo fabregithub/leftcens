@@ -135,6 +135,44 @@ summary.cens_sp_fit <- function(object, ...) {
   summary(object$fit)
 }
 
+#' Coerce a semi-parametric fit to a data frame
+#'
+#' Returns the covariate coefficient table as a tidy data frame --- `term`,
+#' `coef` (log-scale), and the exponentiated `hazard_ratio` (PH) or `odds_ratio`
+#' (PO), plus `std_error` and `p_value` when the fit was built with
+#' `bs_samples > 0` --- ready to hand to a table-formatting package. An
+#' intercept-only (no-covariate) fit yields a zero-row frame.
+#'
+#' @param x A `cens_sp_fit` object.
+#' @param row.names,optional Passed along for S3 consistency.
+#' @param ... Unused.
+#'
+#' @return A data frame, one row per covariate coefficient.
+#' @examples
+#' x <- as_interval_data(c(0, 1, 5, 8, 0, 2), c(1, 3, 5, 8, 1, 4))
+#' grp <- factor(c("a", "a", "a", "b", "b", "b"))
+#' as.data.frame(desc_sp(x, covariates = grp, model = "ph"))
+#' @export
+as.data.frame.cens_sp_fit <- function(x, row.names = NULL, optional = FALSE,
+                                      ...) {
+  cf <- stats::coef(x$fit)
+  ratio_lab <- if (x$model == "ph") "hazard_ratio" else "odds_ratio"
+  if (length(cf) == 0) {
+    return(data.frame(term = character(0), coef = numeric(0),
+                      stringsAsFactors = FALSE))
+  }
+  df <- data.frame(term = names(cf), coef = as.numeric(cf),
+                   stringsAsFactors = FALSE)
+  df[[ratio_lab]] <- exp(df$coef)
+  if (length(x$fit$bsMat) > 0 && !is.null(x$fit$var)) {
+    se <- sqrt(diag(as.matrix(x$fit$var)))[df$term]
+    df$std_error <- as.numeric(se)
+    df$p_value <- 2 * stats::pnorm(-abs(df$coef / df$std_error))
+  }
+  if (!is.null(row.names)) rownames(df) <- row.names
+  df
+}
+
 #' Plot baseline / per-group distribution curves of a semi-parametric fit
 #'
 #' Draws the estimated cumulative distribution function `P(X <= conc)` on the

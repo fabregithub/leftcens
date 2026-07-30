@@ -146,6 +146,44 @@ quantile.cens_np_fit <- function(x, probs = c(.1, .25, .5, .75, .9),
   stats::setNames(q, paste0(format(100 * probs, trim = TRUE), "%"))
 }
 
+#' Coerce a non-parametric NPMLE fit to a data frame
+#'
+#' Returns the quantile summary as a tidy data frame --- one row per requested
+#' probability, with columns `probability`, `quantile` (the `"10%"`-style label),
+#' and `estimate` --- ready to hand to a table-formatting package such as `gt`,
+#' `flextable`, `knitr::kable()`, or `DT`. Estimates below the quantitation limit
+#' are `NA` (see [quantile.cens_np_fit()]); the detection and quantitation limits
+#' are attached as attributes.
+#'
+#' @param x A `cens_np_fit` object.
+#' @param row.names,optional Passed along for S3 consistency; `row.names` sets
+#'   the row names if supplied.
+#' @param probs Probabilities to tabulate.
+#' @param ql Quantitation-limit threshold (see [quantile.cens_np_fit()]).
+#' @param ... Unused.
+#'
+#' @return A data frame with columns `probability`, `quantile`, `estimate`.
+#' @examples
+#' fit <- desc_np(as_interval_data(c(0, 1, 5, 8), c(1, 3, 5, 8)))
+#' as.data.frame(fit)
+#' # e.g. knitr::kable(as.data.frame(fit))  or  gt::gt(as.data.frame(fit))
+#' @export
+as.data.frame.cens_np_fit <- function(x, row.names = NULL, optional = FALSE,
+                                      ..., probs = c(.1, .25, .5, .75, .9),
+                                      ql = x$quantitation_limit) {
+  q <- quantile(x, probs = probs, ql = ql)
+  df <- data.frame(
+    probability = probs,
+    quantile = names(q),
+    estimate = unname(as.numeric(q)),
+    stringsAsFactors = FALSE
+  )
+  if (!is.null(row.names)) rownames(df) <- row.names
+  attr(df, "detection_limit") <- x$detection_limit
+  attr(df, "quantitation_limit") <- x$quantitation_limit
+  df
+}
+
 #' Plot the cumulative distribution of a non-parametric NPMLE fit
 #'
 #' Draws the estimated cumulative distribution function `P(X <= conc)` as a step
