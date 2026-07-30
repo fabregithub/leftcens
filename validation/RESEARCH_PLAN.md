@@ -8,12 +8,12 @@ Rbuildignored).
 
 1. `git pull`, then install so the scripts' `library(leftcens)` resolves:
    `R CMD INSTALL .` (or `devtools::install()`).
-2. **E1, E2, E3, E5, E6 are DONE** (see their result blocks below). The
-   sensitivity + convergence work all confirms the ND<50% target holds for
-   tobit with `iters_all=10`, `M=20`. **Next: pivot to the deliverables** --
-   D2 (guidance) and D3 (pre-flight tool). E7 (runtime) is a quick remaining
-   input to D2; E4 (efficiency) is low priority. The definitive high-rep run
-   (D1) belongs on the workstation.
+2. **E1, E2, E3, E5, E6 and D2 are DONE.** Sensitivity + convergence confirm the
+   ND<50% target holds for tobit with `iters_all=10`, `M=20`; the guidance
+   vignette (`vignettes/imputation-guidance.Rmd`) is written. **Next: D3 --
+   the pre-flight reliability tool** (a `leftcens` function that simulates a
+   user's own design and reports expected bias/coverage). E7 (runtime) is a
+   quick input; the definitive high-rep run (D1) belongs on the workstation.
 3. Then follow **Recommended order** at the bottom; every driver is
    env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params) for scaling up.
 4. Package is at **0.2.0** (tobit is the default `imp_model`); tests green,
@@ -173,11 +173,12 @@ CONFIG=full N_REP=500 M=50 Rscript validation/mc_validation.R      # ~50 hrs
 N_REP=200 M=25 Rscript validation/tobit_vs_ridge.R
 ```
 
-### D2 — Guidance for the best available approach  (point 6)
-Synthesise E1-E7 into a practical guide (a vignette or `validation/` doc): when
-to use tobit vs ridge; expected reliability by censoring rate, correlation
-strength/shape, `p`, skew, and tier structure; recommended `M` / `iters_all`;
-and the compute cost. This is the user-facing decision aid.
+### D2 — Guidance for the best available approach  (point 6)  [DONE]
+Done: `vignettes/imputation-guidance.Rmd` ("How much can you trust the
+imputation?") synthesises E1-E6 into a user-facing guide -- use the default
+tobit; reliable to ~50% ND; `iters_all=10`/`M=20`; co-impute ~12-50 analytes;
+model-choice notes; a runnable per-analyte ND-fraction self-check; and caveats.
+On the pkgdown Articles menu. Fold in E7 (runtime numbers) when available.
 
 ### D3 — Pre-flight reliability tool  (point 7, reading A)
 Package the harness so a user can **simulate data matching their own study
