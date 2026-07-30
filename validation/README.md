@@ -172,6 +172,16 @@ with tobit's rescue coming from the per-analyte censored likelihood rather than
 borrowed cross-analyte information. Reclaiming that efficiency would need a
 non-linear censored conditional model (future extension).
 
+**Three-tier DNQ band (`effect_of_dnq.R`, ND fixed at 40%).** Widening the
+detected-not-quantified band (total censored 40% -> 70%) does not break tobit:
+bias stays ~0 and the target is met throughout, because DNQ cells are
+interval-censored (bounded both sides) and hence more informative than
+non-detects. Notably, **tobit recovers the median even when the median falls
+inside the interval-censored DNQ band** (median bias ~0 at 20-30% DNQ), whereas
+ridge corrupts it (median bias 0.10 -> 0.26). So the target belongs on the
+non-detect fraction alone (ND < 50%); DNQ mass above the median is a help, not a
+hindrance.
+
 These are the substantive results for a methods write-up. Grids used moderate
 replication (transition-zone coverage carries Monte Carlo SE ~+/-0.03-0.05). For
 the definitive run use higher replication on capable hardware:

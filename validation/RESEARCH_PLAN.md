@@ -8,10 +8,12 @@ Rbuildignored).
 
 1. `git pull`, then install so the scripts' `library(leftcens)` resolves:
    `R CMD INSTALL .` (or `devtools::install()`).
-2. **E1, E2, E3 are DONE** (see their result blocks below). **Next task: E5 —
-   the three-tier DNQ band** (the untested gap and the package's raison d'etre;
-   E4's correlation question is largely answered by E1+E3, so it drops in
-   priority). Then E4 (efficiency/interval-width), E6, E7.
+2. **E1, E2, E3, E5 are DONE** (see their result blocks below). The sensitivity
+   analyses all confirm the ND<50% target holds for tobit. **Next: pivot to the
+   deliverables** -- D2 (guidance) and D3 (pre-flight tool) -- and/or the cheap
+   remaining refinements E6 (convergence) and E7 (runtime). E4 (efficiency /
+   interval-width) is low priority (E1+E3 answered the correlation question).
+   The definitive high-rep run (D1) belongs on the workstation.
 3. Then follow **Recommended order** at the bottom; every driver is
    env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params) for scaling up.
 4. Package is at **0.2.0** (tobit is the default `imp_model`); tests green,
@@ -143,9 +145,16 @@ paired ridge-vs-tobit designs (same data, only the model differs), as in
   E3.
 
 ### Gaps to fold in
-- **E5 — Three-tier (DNQ) band.** Almost everything used pure left-censoring
-  (`dnq_frac = 0`). The middle tier is the package's raison d'etre; give it a
-  sensitivity slice (`dnq_frac > 0`).
+- **E5 — Three-tier (DNQ) band. [DONE]** `effect_of_dnq.R`; ND fixed at 40%,
+  DNQ widened 0->30% (total censored 40->70%). **tobit holds the target (bias
+  ~0) at every DNQ level** -- DNQ cells are interval-censored, so *more*
+  informative than non-detects; the three-tier structure is easier for tobit
+  than pure left-censoring. **Key result: tobit recovers the median even when
+  the median falls inside the interval-censored DNQ band** (bias ~0 at 20%/30%
+  DNQ), whereas ridge corrupts it (bias 0.10 -> 0.26). Confirms the target
+  belongs on the *non-detect* fraction alone (ND < 50%); DNQ mass above the
+  median does not break recovery. Run higher-rep:
+  `REPS=100 ITERS=25 Rscript validation/effect_of_dnq.R`.
 - **E6 — Convergence guidance.** How large must `M` (imputations) and
   `iters_all` (sweeps) be for stable bias/coverage? Cheap; needed for E-guidance.
 - **E7 — Runtime / scalability.** Profile tobit vs ridge vs `p`/`n` (tobit is
