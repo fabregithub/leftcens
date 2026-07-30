@@ -8,17 +8,19 @@ Rbuildignored).
 
 1. `git pull`, then install so the scripts' `library(leftcens)` resolves:
    `R CMD INSTALL .` (or `devtools::install()`).
-2. **E1, E2, E3, E5, E6, D2 and D3 are DONE.** Sensitivity + convergence confirm
-   the ND<50% target; the guidance vignette and the pre-flight tool
-   (`preflight_reliability()` / `preflight_from_data()`) are shipped. **Next:
-   optional E7 (runtime numbers, a quick input to the guidance) and E4
-   (efficiency); the definitive high-rep run (D1) on the workstation; and, when
-   ready, a v0.3.0 release.** The core research program is essentially complete.
-3. Then follow **Recommended order** at the bottom; every driver is
-   env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params) for scaling up.
-4. Package is at **0.2.0** (tobit is the default `imp_model`); tests green,
-   `R CMD check` 0/0/0. Heavy runs go here on the workstation — the 10-min /
-   library-path limits from the Claude Code environment do not apply.
+2. **All experiments (E1-E7) and deliverables (D2, D3) are DONE; v0.3.0 is
+   released.** The research program is complete. **The only remaining item is
+   D1 -- the definitive high-replication confirmation** on the workstation:
+   `CONFIG=full N_REP=500 M=50 Rscript validation/mc_validation.R`, plus
+   higher-rep reruns of the per-experiment drivers (each prints its command).
+   A future methodological extension is a non-linear censored conditional model
+   (see E3).
+3. Every driver is env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params)
+   for scaling up; see **Recommended order** at the bottom.
+4. Package is at **0.3.0** (tobit default; pre-flight tools; guidance vignette);
+   tests green, `R CMD check` 0/0/0. Heavy runs go here on the workstation --
+   the 10-min / library-path limits from the Claude Code environment do not
+   apply.
 
 ## Target (north star)
 
@@ -134,15 +136,18 @@ paired ridge-vs-tobit designs (same data, only the model differs), as in
   lost under non-linear dependence — a Phase-3 methodological extension.
 - **Run it (higher rep):** `REPS=100 ITERS=25 Rscript validation/effect_of_dependence.R`
 
-### E4 — Censoring rate x correlation interaction under tobit  (point 4)
-- **Question:** does correlation help tobit at high censoring (where it was
-  inert for ridge)? Per E1, expect correlation to affect *efficiency*, not
-  *bias*, for tobit.
-- **How:** extend `detection_rate_standard.R` to run a tobit arm across the
-  rho x detection-rate grid. **Record RMSE and mean MI interval width**, not
-  just bias/coverage, since for tobit the interesting effect of correlation is
-  narrower intervals / lower variance rather than reduced bias. Partly overlaps
-  E3.
+### E4 — Censoring rate x correlation, and efficiency  (point 4)  [DONE]
+- **Question:** does correlation improve tobit's *efficiency* (narrower MI
+  intervals) even though E1 showed it does not change bias?
+- **Result** (`effect_of_efficiency.R`; tobit, n=150 p=6, ND in {25%,40%} x
+  rho in {0,0.5,0.8}): **no** -- MI interval width is essentially flat across
+  rho (~0.33 throughout), with bias ~0 and coverage ~1.00. So correlation does
+  not help tobit for the marginal-mean target, on *any* axis (bias E1, shape E3,
+  or efficiency E4).
+- **Why:** the target is each analyte's *marginal* mean, whose sampling variance
+  is a marginal quantity; inter-analyte correlation sharpens per-*cell*
+  imputation but not a *marginal-mean* estimate. Correlation would matter only
+  for a downstream *joint* analysis (e.g. regression on these analytes).
 
 ### Gaps to fold in
 - **E5 — Three-tier (DNQ) band. [DONE]** `effect_of_dnq.R`; ND fixed at 40%,
