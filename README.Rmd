@@ -18,6 +18,7 @@ set.seed(1)
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/fabregithub/leftcens/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/fabregithub/leftcens/actions/workflows/R-CMD-check.yaml)
+[![pkgdown](https://github.com/fabregithub/leftcens/actions/workflows/pkgdown.yaml/badge.svg)](https://fabregithub.github.io/leftcens/)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 <!-- badges: end -->
