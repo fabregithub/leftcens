@@ -45,8 +45,10 @@ export. `groundwater` has one row per sample and a `.left` / `.right` bound pair
 per metal --- the full three-tier interval layout:
 
 ```{r show-data}
+# groundwater has 11 columns (sample_id + 5 metals x .left/.right);
+# columns 1:7 are sample_id and the first 3 metals -- shown to keep it readable
 knitr::kable(head(groundwater[, 1:7]),
-             caption = "groundwater: one row per sample, left/right per analyte (first 3 metals)")
+             caption = "groundwater: one row per sample, .left/.right per metal (first 3 shown)")
 ```
 
 Read your own file with `dat <- read.csv("yourfile.csv")` (or
@@ -136,8 +138,10 @@ detection or reporting limit) and a blank for a quantified result. The bundled
 `surfacewater` data set has this shape:
 
 ```{r flag-data}
+# surfacewater has 11 columns (sample_id + 5 metals x value/.flag);
+# columns 1:7 are sample_id and the first 3 metals
 knitr::kable(head(surfacewater[, 1:7]),
-             caption = "surfacewater: a value and a qualifier per metal (first 3 metals)")
+             caption = "surfacewater: a value and a qualifier per metal (first 3 shown)")
 ```
 
 `as_cens_list()` reads this layout with `format = "flagged"` --- a flagged
