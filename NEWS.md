@@ -1,9 +1,11 @@
 # leftcens (development version)
 
 * New vignette "Preparing your own data for leftcens" --- a step-by-step
-  on-ramp from a wide laboratory export (one `left`/`right` column pair per
-  analyte) through per-analyte `cens_data` construction, descriptive summaries,
-  and imputation, with recipes for other common input formats.
+  on-ramp from a wide laboratory export through per-analyte `cens_data`
+  construction, descriptive summaries, and imputation, with recipes for the
+  common input formats: pre-split `left`/`right` columns, a value column plus a
+  qualifier-flag column per analyte (e.g. `A`, `A.flag`), and single-column
+  value-plus-censored-flag data.
 
 # leftcens 0.4.0
 

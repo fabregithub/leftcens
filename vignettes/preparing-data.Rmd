@@ -145,6 +145,51 @@ preflight_from_data(cens_list, n_rep = 30, M = 20)
 You still just need a `left` and a `right` per measurement. Common starting
 points:
 
+### A wide table of values with qualifier flags
+
+Most lab exports are not pre-split into `left`/`right`. More often each analyte
+has a **value column and a qualifier-flag column** --- the value plus a code such
+as `"<"` / `"ND"` / `"U"` for a non-detect (where the reported number is the
+detection or reporting limit) and a blank for a quantified result:
+
+```{r flag-data}
+lab <- data.frame(
+  ID     = sprintf("S%02d", 1:6),
+  A      = c(2.10, 0.50, 3.40, 0.50, 1.80, 0.50),
+  A.flag = c("",   "<",  "",   "<",  "",   "<"),
+  B      = c(1.00, 4.20, 1.00, 5.10, 1.00, 2.30),
+  B.flag = c("<",  "",   "<",  "",   "<",  ""),
+  stringsAsFactors = FALSE
+)
+knitr::kable(lab, caption = "Flagged wide data: a value and a qualifier per analyte")
+```
+
+Convert one value/flag pair to `(left, right)` with a small helper: a flagged
+non-detect becomes `(0, value)` (the value is the limit); anything else is an
+exact `(value, value)`.
+
+```{r flag-helper}
+flag_to_cens <- function(value, flag, nd_flags = c("<", "ND", "U")) {
+  nd <- flag %in% nd_flags
+  as_interval_data(left = ifelse(nd, 0, value), right = value)
+}
+
+lab_analytes <- c("A", "B")
+lab_cens <- lapply(lab_analytes, function(a) {
+  flag_to_cens(lab[[a]], lab[[paste0(a, ".flag")]])
+})
+names(lab_cens) <- lab_analytes
+lab_cens$A
+```
+
+From here it is identical to the sections above: `desc_np()` per analyte,
+`build_bounds(lab_cens)`, `gsimp_impute()`. If you also have a
+detected-not-quantified qualifier (e.g. `"J"`) and know each analyte's
+quantitation limit `lcmrl`, extend the helper to place those rows in the middle
+tier --- `left = mdl`, `right = lcmrl` --- so all three tiers are represented.
+
+### Other single-column formats
+
 **A value plus a "censored" flag (single detection limit).** This is the classic
 Helsel-style format --- one number per row and a `TRUE`/`FALSE` for whether it was
 below the limit:
