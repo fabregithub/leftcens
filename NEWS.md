@@ -1,4 +1,4 @@
-# leftcens (development version)
+# leftcens 0.4.1
 
 * New vignette "Preparing your own data for leftcens" --- a step-by-step
   on-ramp from a wide laboratory export through per-analyte `cens_data`
