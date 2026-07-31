@@ -40,35 +40,19 @@ rest (it even derives which tier each row is in).
 
 ## Starting from a wide lab export
 
-A common export has one row per sample and a `left`/`right` pair per analyte ---
-exactly the shape below (analytes `A`--`E`, each with `.left` / `.right`):
-
-```{r make-data}
-# --- a stand-in for your own data; replace this with read.csv("yourfile.csv") ---
-analytes <- c("A", "B", "C", "D", "E")
-mdl   <- c(A = 0.5, B = 1.0, C = 0.2, D = 5.0, E = 0.1)   # detection limits
-lcmrl <- c(A = 2.0, B = 4.0, C = 1.0, D = 20,  E = 0.5)   # quantitation limits
-
-n <- 10
-truth <- sapply(analytes, function(a) rlnorm(n, meanlog = log(lcmrl[[a]]), sdlog = 1))
-dat <- data.frame(ID = sprintf("S%02d", seq_len(n)))
-for (a in analytes) {
-  v <- truth[, a]
-  dat[[paste0(a, ".left")]] <- round(
-    ifelse(v < mdl[[a]], 0,        ifelse(v < lcmrl[[a]], mdl[[a]],   v)), 2)
-  dat[[paste0(a, ".right")]] <- round(
-    ifelse(v < mdl[[a]], mdl[[a]], ifelse(v < lcmrl[[a]], lcmrl[[a]], v)), 2)
-}
-```
+The package ships two small example data sets in the two shapes labs most often
+export. `groundwater` has one row per sample and a `.left` / `.right` bound pair
+per metal --- the full three-tier interval layout:
 
 ```{r show-data}
-knitr::kable(dat, caption = "Wide lab export: one row per sample, left/right per analyte")
+knitr::kable(head(groundwater[, 1:7]),
+             caption = "groundwater: one row per sample, left/right per analyte (first 3 metals)")
 ```
 
-Read your own file with `dat <- read.csv("yourfile.csv")` (or `readxl::read_excel()`)
-so it has this shape. Notice how the tiers show up: a non-detect is `(0, MDL)`,
-a detected-not-quantified value is `(MDL, LCMRL)`, and a quantified value has
-`left == right`.
+Read your own file with `dat <- read.csv("yourfile.csv")` (or
+`readxl::read_excel()`) so it has this shape. The tiers show up directly: a
+non-detect is `(0, MDL)`, a detected-not-quantified value is `(MDL, LCMRL)`, and
+a quantified value has `left == right`.
 
 ## Build one `cens_data` per analyte
 
@@ -79,7 +63,7 @@ short loop over the analyte names does it:
 per analyte from its `.left` / `.right` column pair:
 
 ```{r build-cens}
-cens_list <- as_cens_list(dat)   # infers analytes A-E from the column names
+cens_list <- as_cens_list(groundwater)   # infers the metals from the column names
 cens_list
 ```
 
@@ -121,7 +105,7 @@ filled_log <- gsimp_impute(bounds)          # default censored ("tobit") model
 
 # results are on the log scale; back-transform to original units
 filled <- round(exp(filled_log), 2)
-filled_with_id <- data.frame(ID = dat$ID, filled)
+filled_with_id <- data.frame(sample_id = groundwater$sample_id, filled)
 knitr::kable(head(filled_with_id), caption = "Completed analyte matrix (original units)")
 ```
 
@@ -148,31 +132,25 @@ points:
 Most lab exports are not pre-split into `left`/`right`. More often each analyte
 has a **value column and a qualifier-flag column** --- the value plus a code such
 as `"<"` / `"ND"` / `"U"` for a non-detect (where the reported number is the
-detection or reporting limit) and a blank for a quantified result:
+detection or reporting limit) and a blank for a quantified result. The bundled
+`surfacewater` data set has this shape:
 
 ```{r flag-data}
-lab <- data.frame(
-  ID     = sprintf("S%02d", 1:6),
-  A      = c(2.10, 0.50, 3.40, 0.50, 1.80, 0.50),
-  A.flag = c("",   "<",  "",   "<",  "",   "<"),
-  B      = c(1.00, 4.20, 1.00, 5.10, 1.00, 2.30),
-  B.flag = c("<",  "",   "<",  "",   "<",  ""),
-  stringsAsFactors = FALSE
-)
-knitr::kable(lab, caption = "Flagged wide data: a value and a qualifier per analyte")
+knitr::kable(head(surfacewater[, 1:7]),
+             caption = "surfacewater: a value and a qualifier per metal (first 3 metals)")
 ```
 
-`as_cens_list()` reads this layout too with `format = "flagged"` --- a flagged
+`as_cens_list()` reads this layout with `format = "flagged"` --- a flagged
 non-detect becomes `(0, value)` (the value is the limit), anything else an exact
 `(value, value)`. Set `nd_flags` to whichever codes your lab uses:
 
 ```{r flag-list}
-lab_cens <- as_cens_list(lab, format = "flagged", nd_flags = c("<", "ND", "U"))
-lab_cens
+sw_cens <- as_cens_list(surfacewater, format = "flagged", nd_flags = "<")
+sw_cens
 ```
 
-From here it is identical to the sections above: `desc_np(lab_cens)`,
-`build_bounds(lab_cens) |> gsimp_impute()`. If you also have a
+From here it is identical to the sections above: `desc_np(sw_cens)`,
+`build_bounds(sw_cens) |> gsimp_impute()`. If you also have a
 detected-not-quantified qualifier (e.g. `"J"`) and know each analyte's
 quantitation limit, place those rows in the middle tier (`left = MDL`,
 `right = LCMRL`) by building the `left`/`right` columns yourself and calling

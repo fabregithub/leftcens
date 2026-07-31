@@ -58,3 +58,9 @@ reference:
   - glance.cens_np_fit
   - tidy.cens_sp_fit
   - glance.cens_sp_fit
+
+- title: Datasets
+  desc: Example laboratory data in the two common export layouts.
+  contents:
+  - groundwater
+  - surfacewater

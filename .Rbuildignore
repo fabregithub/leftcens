@@ -7,3 +7,4 @@
 ^validation$
 ^\.github$
 ^NOTES\.md$
+^data-raw$

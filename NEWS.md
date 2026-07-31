@@ -1,5 +1,8 @@
 # leftcens (development version)
 
+* Two example data sets, `groundwater` (three-tier `.left`/`.right` layout) and
+  `surfacewater` (value + qualifier-flag layout), so the two common lab-export
+  shapes can be tried directly (`data(groundwater)`).
 * Descriptive statistics are now data-frame-first, mirroring the imputation
   side. `as_cens_list()` turns a wide laboratory table into a named list of
   `cens_data` (one per analyte) --- supporting both `.left`/`.right` column pairs
