@@ -52,33 +52,48 @@ as `NA`, which is precisely what you want when tabulating: a blank/`< LCMRL`
 rather than a spurious number. A reporting table falls out of `glance()` and
 `quantile()`:
 
+Report a *range* of quantiles, not just the median --- the low ones make the
+censoring visible. Any quantile below the quantitation limit comes back as `NA`,
+so the lower percentiles simply drop out for the more-censored analytes:
+
 ```{r report-table}
 cl <- as_cens_list(groundwater)
 np <- desc_np(cl)
 
 g <- glance(np)
-q <- quantile(np, probs = c(0.5, 0.9))       # NA below the quantitation limit
+# include lower quantiles; those below the LCMRL come back as NA
+q <- quantile(np, probs = c(0.1, 0.25, 0.5, 0.75, 0.9))
 
 report <- data.frame(
   Analyte      = g$analyte,
   n            = g$nobs,
   `Detected %` = round(100 * (1 - g$n_non_detect / g$nobs)),
-  MDL          = g$detection_limit,
   LCMRL        = g$quantitation_limit,
+  `10th`       = q[g$analyte, "10%"],
+  `25th`       = q[g$analyte, "25%"],
   Median       = q[g$analyte, "50%"],
-  `90th pct`   = q[g$analyte, "90%"],
+  `75th`       = q[g$analyte, "75%"],
+  `90th`       = q[g$analyte, "90%"],
   check.names  = FALSE
 )
 knitr::kable(report, digits = 2,
-             caption = "A reportable summary: detection frequency, limits, and estimable quantiles")
+             caption = "Only quantiles at or above the LCMRL carry a number; lower ones are NA (report as < LCMRL)")
 ```
 
-Read an `NA` median as "**< LCMRL**": more than half of those samples were below
-the quantitation limit, so the median is not a quantified value. Report it that
-way rather than forcing a number. A limit shown as `NA` (e.g. the Zn `MDL` here)
-just means that tier did not occur in the data --- no sample was a Zn non-detect,
-so no detection limit is derivable; report your laboratory's stated limit
-instead.
+Read every `NA` as "**< LCMRL**": that quantile falls below the quantitation
+limit, so it is not a quantified number. Here the 10th and 25th percentiles are
+`NA` for every metal, and the median is `NA` for several, while the upper
+quantiles carry values. That *is* the honest summary: report the quantiles you
+can, and `< LCMRL` for the rest. The **minimum** always lies below the detection
+limit whenever any non-detects are present, so it is never a reportable number.
+
+Note that **detected is not the same as quantified**: "detected" means above the
+detection limit (MDL); "quantified" means above the quantitation limit (LCMRL).
+An analyte can be mostly detected yet have its median in the
+detected-not-quantified band --- arsenic here is 75% *detected* but its median is
+still below the 2.0 LCMRL, hence `< LCMRL`. (A derived limit shown as `NA` simply
+means that tier did not occur in the data --- e.g. an analyte with no non-detects
+has no derivable MDL; report your laboratory's stated limit.)
 
 ## When an analyte is too censored for point summaries
 

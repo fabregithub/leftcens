@@ -1,3 +1,11 @@
+# leftcens (development version)
+
+* The "Reporting censored-data results" vignette's summary table now reports a
+  range of quantiles (10th, 25th, median, 75th, 90th); those below the
+  quantitation limit come back as `NA` (read as `< LCMRL`), making the effect of
+  censoring on the lower tail explicit, with a note that "detected" (>= MDL)
+  differs from "quantified" (>= LCMRL).
+
 # leftcens 0.6.0
 
 * New vignette "Reporting censored-data results" --- how to present
