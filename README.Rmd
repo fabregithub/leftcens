@@ -59,83 +59,37 @@ leftcens is not yet on CRAN. Install the development version from GitHub:
 remotes::install_github("fabregithub/leftcens")
 ```
 
-## Example
+## Getting started
 
-Build a `cens_data` object from per-observation bounds and summarise it
-non-parametrically:
+`leftcens` ships two example lab exports; `as_cens_list()` turns either into one
+`cens_data` per analyte, which flows into the descriptive and imputation tools:
 
-```{r example}
+```{r taste}
 library(leftcens)
 
-# an analyte with MDL = 0.5, LCMRL = 2.0
-x <- as_interval_data(
-  left  = c(0,   0,   0.5, 3.1, 4.2, 0,   1.9),
-  right = c(0.5, 0.5, 2.0, 3.1, 4.2, 0.5, 2.0)
-)
-x
+# `groundwater` is bundled with the package (a wide ".left"/".right" lab export)
+cl <- as_cens_list(groundwater)               # one cens_data per analyte
 
-fit <- desc_np(x)
-quantile(fit, probs = c(0.1, 0.5, 0.9))
+quantile(desc_np(cl), probs = c(0.5, 0.9))    # per-analyte quantiles (NA below the QL)
+
+filled <- gsimp_impute(build_bounds(cl))      # impute the censored cells (tobit model)
 ```
 
-Quantiles that fall below the quantitation limit are reported as `NA` — an
-estimate there is an extrapolation into the censored region, not a reliably
-quantified value (pass `ql = 0` for the raw estimates). The descriptive fits are
-table-ready via `as.data.frame()` (for `gt`, `flextable`, `knitr::kable()`, …)
-and broom-style `tidy()` / `glance()` (for `gtsummary`, `modelsummary`, …).
+Descriptive summaries are table-ready via `as.data.frame()` (`gt`, `flextable`,
+`knitr::kable()`, …) and broom-style `tidy()` / `glance()`.
 
-Impute censored cells of a wide analyte matrix, drawing each value from within
-its interval. Naively substituting the detection limit biases means upward, since
-censoring removes the *low* values; the Gibbs sampler draws from within each
-interval and — with the default censored (`"tobit"`) conditional model —
-recovers the truth with little residual bias:
+The four vignettes (also on the [package website](https://fabregithub.github.io/leftcens/))
+carry the detail:
 
-```{r impute}
-# correlated log-concentrations, censored below each analyte's 30th percentile
-n <- 200; p <- 3
-z_true <- matrix(rnorm(n * p), n, p) %*% chol(matrix(0.6, p, p) + diag(0.4, p))
-conc <- exp(z_true)
-lim <- apply(conc, 2, quantile, 0.30)
-
-cds <- lapply(seq_len(p), function(j) {
-  cj <- conc[, j]
-  as_interval_data(
-    left  = ifelse(cj < lim[j], 0,      cj),
-    right = ifelse(cj < lim[j], lim[j], cj)
-  )
-})
-
-bounds <- build_bounds(cds)
-filled <- gsimp_impute(bounds, iters_all = 30)
-
-naive <- bounds$data_wide
-naive[bounds$to_impute] <- bounds$hi_mat[bounds$to_impute]
-
-rbind(
-  truth = colMeans(z_true),
-  gsimp = colMeans(filled),
-  naive = colMeans(naive)
-)
-```
-
-## Learn more
-
-- `vignette("getting-started", package = "leftcens")` — the data model and the
-  descriptive-statistics tools.
-- `vignette("imputation-bounds", package = "leftcens")` — the per-cell bounds
-  and the Gibbs sampler, with a recovery demonstration.
-
-## How much censoring can be imputed reliably?
-
-A Monte Carlo validation study (in `validation/`) maps where imputation stays
-trustworthy. In short: imputation is reliable — small bias **and** calibrated
-95% multiple-imputation coverage — down to roughly **75–80% detection (≤ ~20–25%
-non-detects)**. Beyond that, coverage fails before bias does; larger samples do
-*not* help (they tighten intervals around a slightly-biased centre, so inference
-gets *worse*); and inter-analyte correlation does not extend the range, because
-each analyte's reliability is governed by its own detection rate. Right-skewed
-data is more forgiving than symmetric log-scale data. See the
-`imputation-bounds` vignette and `validation/README.md` for details.
+- **Getting started** — the interval data model and the descriptive and
+  imputation tools.
+- **Preparing your own data** — from a wide lab export (interval *or* flagged) to
+  results, using the bundled `groundwater` / `surfacewater` datasets.
+- **Per-cell imputation bounds** — the Gibbs sampler and a recovery
+  demonstration.
+- **How much can you trust the imputation?** — practical guidance and the
+  reliability limit (imputation stays trustworthy to roughly 50% non-detects; the
+  full Monte Carlo study is in `validation/`).
 
 ## License and provenance
 
