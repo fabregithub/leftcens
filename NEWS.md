@@ -1,4 +1,4 @@
-# leftcens (development version)
+# leftcens 0.5.0
 
 * Two example data sets, `groundwater` (three-tier `.left`/`.right` layout) and
   `surfacewater` (value + qualifier-flag layout), so the two common lab-export
