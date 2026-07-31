@@ -1,6 +1,6 @@
 Package: leftcens
 Title: Descriptive Statistics and Imputation for Left- and Interval-Censored Data
-Version: 0.5.0.9000
+Version: 0.6.0
 Authors@R:
     person(given = "Shoji F.",
            family = "Nakayama",

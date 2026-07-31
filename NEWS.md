@@ -1,4 +1,4 @@
-# leftcens (development version)
+# leftcens 0.6.0
 
 * New vignette "Reporting censored-data results" --- how to present
   censored-measurement results honestly (detection frequency and limits, when the
