@@ -1,4 +1,4 @@
-# leftcens (development version)
+# leftcens 0.6.1
 
 * The "Reporting censored-data results" vignette's summary table now reports a
   range of quantiles (10th, 25th, median, 75th, 90th); those below the
