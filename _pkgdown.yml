@@ -8,6 +8,7 @@ articles:
   navbar: ~
   contents:
   - getting-started
+  - preparing-data
   - imputation-bounds
   - imputation-guidance
 

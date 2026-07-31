@@ -1,3 +1,10 @@
+# leftcens (development version)
+
+* New vignette "Preparing your own data for leftcens" --- a step-by-step
+  on-ramp from a wide laboratory export (one `left`/`right` column pair per
+  analyte) through per-analyte `cens_data` construction, descriptive summaries,
+  and imputation, with recipes for other common input formats.
+
 # leftcens 0.4.0
 
 * `as.data.frame()` methods for `desc_np()` and `desc_sp()` fits return tidy

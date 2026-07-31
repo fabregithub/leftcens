@@ -44,6 +44,10 @@ descriptive-statistics and the imputation tools.
 `as_interval_data()` takes the per-observation lower and upper bounds and
 classifies each row for you. Suppose an analyte has MDL = 0.5 and LCMRL = 2.0:
 
+(Bringing a whole spreadsheet of analytes? See
+`vignette("preparing-data")` for a step-by-step from a wide lab export to
+descriptive summaries and imputation.)
+
 ```{r construct}
 x <- as_interval_data(
   left  = c(0,   0,   0.5, 3.1, 4.2, 0,   1.9),

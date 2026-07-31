@@ -1,0 +1,184 @@
+---
+title: "Preparing your own data for leftcens"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Preparing your own data for leftcens}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+set.seed(1)
+```
+
+```{r setup}
+library(leftcens)
+```
+
+This vignette is the practical on-ramp: how to get a typical laboratory data set
+into `leftcens`, run the descriptive summaries, and impute --- starting from a
+wide table of per-analyte lower/upper bounds. If you have not met the data model
+yet, skim `vignette("getting-started")` first.
+
+## The one thing to get right
+
+Everything in `leftcens` starts from **per-observation intervals**: for each
+measurement you supply a lower bound `left` and an upper bound `right` that the
+true value lies between. The three reporting tiers are just three interval
+shapes:
+
+| Tier | Meaning | `left` | `right` |
+|---|---|---|---|
+| Non-detect | below the detection limit (MDL) | `0` | `MDL` |
+| Detected, not quantified | between MDL and the quantitation limit (LCMRL) | `MDL` | `LCMRL` |
+| Quantified | an actual measurement | `value` | `value` |
+
+So the whole task of "preparing your data" is: **produce a `left` and a `right`
+column for each analyte.** Once you have those, `as_interval_data()` does the
+rest (it even derives which tier each row is in).
+
+## Starting from a wide lab export
+
+A common export has one row per sample and a `left`/`right` pair per analyte ---
+exactly the shape below (analytes `A`--`E`, each with `.left` / `.right`):
+
+```{r make-data}
+# --- a stand-in for your own data; replace this with read.csv("yourfile.csv") ---
+analytes <- c("A", "B", "C", "D", "E")
+mdl   <- c(A = 0.5, B = 1.0, C = 0.2, D = 5.0, E = 0.1)   # detection limits
+lcmrl <- c(A = 2.0, B = 4.0, C = 1.0, D = 20,  E = 0.5)   # quantitation limits
+
+n <- 10
+truth <- sapply(analytes, function(a) rlnorm(n, meanlog = log(lcmrl[[a]]), sdlog = 1))
+dat <- data.frame(ID = sprintf("S%02d", seq_len(n)))
+for (a in analytes) {
+  v <- truth[, a]
+  dat[[paste0(a, ".left")]] <- round(
+    ifelse(v < mdl[[a]], 0,        ifelse(v < lcmrl[[a]], mdl[[a]],   v)), 2)
+  dat[[paste0(a, ".right")]] <- round(
+    ifelse(v < mdl[[a]], mdl[[a]], ifelse(v < lcmrl[[a]], lcmrl[[a]], v)), 2)
+}
+```
+
+```{r show-data}
+knitr::kable(dat, caption = "Wide lab export: one row per sample, left/right per analyte")
+```
+
+Read your own file with `dat <- read.csv("yourfile.csv")` (or `readxl::read_excel()`)
+so it has this shape. Notice how the tiers show up: a non-detect is `(0, MDL)`,
+a detected-not-quantified value is `(MDL, LCMRL)`, and a quantified value has
+`left == right`.
+
+## Build one `cens_data` per analyte
+
+Turn each analyte's `.left` / `.right` column pair into a `cens_data` object. A
+short loop over the analyte names does it:
+
+```{r build-cens}
+cens_list <- lapply(analytes, function(a) {
+  as_interval_data(left  = dat[[paste0(a, ".left")]],
+                   right = dat[[paste0(a, ".right")]])
+})
+names(cens_list) <- analytes
+
+cens_list$A
+```
+
+`as_interval_data()` classifies each row for you (the printout shows the tier
+counts), and by default stores bounds on the log scale (`log_transform = TRUE`),
+which is what the imputation and NPMLE machinery expect. Keep the `ID` column
+aside --- `leftcens` works on the analyte columns; you re-attach IDs afterward by
+row order.
+
+## Descriptive summaries, per analyte
+
+`desc_np()` gives a non-parametric distribution summary for one analyte. Loop
+over the list to summarise all of them, and use the `as.data.frame()` method to
+collect the quantiles into one tidy table:
+
+```{r desc}
+np <- lapply(cens_list, desc_np)
+
+summary_tbl <- do.call(rbind, lapply(analytes, function(a) {
+  cbind(analyte = a, as.data.frame(np[[a]], probs = c(0.25, 0.5, 0.75)))
+}))
+knitr::kable(summary_tbl, digits = 2,
+             caption = "Quantiles per analyte (NA = below the quantitation limit)")
+```
+
+Quantiles that fall below an analyte's quantitation limit come back as `NA`:
+there the estimate would be an extrapolation into the censored region rather than
+a reliably quantified value. (Pass `ql = 0` to `as.data.frame()` /
+`quantile()` if you want the raw estimates.)
+
+## Impute the censored values
+
+To fill the censored cells --- for example to feed a downstream model that cannot
+take intervals --- pass the whole list to `build_bounds()` and `gsimp_impute()`:
+
+```{r impute}
+bounds <- build_bounds(cens_list)
+filled_log <- gsimp_impute(bounds)          # default censored ("tobit") model
+
+# results are on the log scale; back-transform to original units
+filled <- round(exp(filled_log), 2)
+filled_with_id <- data.frame(ID = dat$ID, filled)
+knitr::kable(head(filled_with_id), caption = "Completed analyte matrix (original units)")
+```
+
+Every imputed value lies within its interval by construction; observed
+(quantified) cells are returned unchanged.
+
+### Will imputation be reliable for your data?
+
+Before trusting imputed values, run a pre-flight check: it simulates data like
+yours and reports the bias and coverage you can expect, flagging analytes with
+too much censoring (see `vignette("imputation-guidance")`).
+
+```{r preflight, eval = FALSE}
+preflight_from_data(cens_list, n_rep = 30, M = 20)
+```
+
+## If your data looks different
+
+You still just need a `left` and a `right` per measurement. Common starting
+points:
+
+**A value plus a "censored" flag (single detection limit).** This is the classic
+Helsel-style format --- one number per row and a `TRUE`/`FALSE` for whether it was
+below the limit:
+
+```{r single}
+value    <- c(2.0, 5.1, 0.8, 3.3)
+censored <- c(FALSE, FALSE, TRUE, FALSE)   # TRUE = non-detect at that value
+as_interval_data_from_single(value, censored)
+```
+
+**A value plus a per-row detection limit.** If non-detects are recorded as the
+limit with a flag, build the pair yourself:
+
+```{r perrow}
+result <- c(2.0, NA, 5.1, NA)      # measured value, NA where not detected
+dl     <- c(0.5, 0.5, 0.5, 0.7)    # detection limit for that row
+nd     <- is.na(result)
+left  <- ifelse(nd, 0,  result)
+right <- ifelse(nd, dl, result)
+as_interval_data(left, right)
+```
+
+**Fully quantified data (no censoring).** Set `left == right == value`; those
+rows are treated as exact and nothing special happens.
+
+## A short checklist
+
+- One `left` and one `right` column per analyte, with `left <= right`.
+- Non-detects: `left = 0`, `right = MDL`. Do **not** substitute the limit or
+  `MDL/2` yourself --- let `leftcens` handle the censoring.
+- Keep concentrations on their natural (original) scale; leave
+  `log_transform = TRUE` (the default) so `left = 0` maps to the expected
+  non-detect bound.
+- Keep sample IDs in a separate column and re-attach by row order.
+- Check each analyte's non-detect fraction (`mean(x$category == "non_detect")`)
+  --- above ~50% ND, prefer interval-censored *descriptive* summaries over
+  trusting imputed point values.
