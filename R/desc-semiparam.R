@@ -52,7 +52,9 @@ sp_surv_curves <- function(object, newdata = NULL) {
 #' Covariates are matched to `x` by position and are subset in step with any
 #' observations dropped for missing bounds.
 #'
-#' @param x A `cens_data` object (see [as_interval_data()]).
+#' @param x A `cens_data` object (see [as_interval_data()]) for a single
+#'   analyte, **or** a named list / `cens_list` of them (see [as_cens_list()])
+#'   to fit several analytes against the same covariates at once.
 #' @param covariates Optional covariates aligned to `x` (one row/element per
 #'   observation): a data frame, an atomic vector, a factor, or `NULL` for an
 #'   intercept-only baseline model.
@@ -62,11 +64,14 @@ sp_surv_curves <- function(object, newdata = NULL) {
 #'   and p-values. The default `0` fits point estimates only (fast and
 #'   deterministic); set it higher for inference via [summary()].
 #'
-#' @return A `cens_sp_fit` object: a list with the fitted `fit`, the `model`,
-#'   the `covariates` names, `log_transform`, the number of observations `n`,
-#'   the count `dropped` for missing bounds, and the `category` counts.
+#' @return For a single `cens_data`, a `cens_sp_fit` object (fitted `fit`,
+#'   `model`, `covariates` names, `log_transform`, `n`, `dropped`, `category`
+#'   counts). For a list of analytes, a `cens_sp_fits` collection with `print()`,
+#'   `as.data.frame()`, `tidy()`, and `glance()` methods that stack the analytes'
+#'   coefficient tables.
 #'
-#' @seealso [plot.cens_sp_fit()] for baseline / per-group distribution curves.
+#' @seealso [plot.cens_sp_fit()] for baseline / per-group distribution curves,
+#'   and [as_cens_list()] to build the multi-analyte input from a data frame.
 #'
 #' @examples
 #' x <- as_interval_data(left = c(0, 1, 5, 8, 0, 2), right = c(1, 3, 5, 8, 1, 4))
@@ -76,11 +81,16 @@ sp_surv_curves <- function(object, newdata = NULL) {
 #' @export
 desc_sp <- function(x, covariates = NULL, model = c("ph", "po"),
                     bs_samples = 0) {
-  if (!is_cens_data(x)) {
-    stop("`x` must be a <cens_data> object; see `as_interval_data()`.",
-         call. = FALSE)
-  }
   model <- match.arg(model)
+  if (!is_cens_data(x)) {
+    # multi-analyte: a (named) list / cens_list of cens_data objects
+    cols <- as_cens_data_list(x)
+    fits <- lapply(cols, function(cd) {
+      desc_sp(cd, covariates = covariates, model = model,
+              bs_samples = bs_samples)
+    })
+    return(structure(fits, class = "cens_sp_fits"))
+  }
 
   b <- cens_original_bounds(x)
   df <- data.frame(.lo = b$lo, .hi = b$hi)

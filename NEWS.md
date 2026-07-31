@@ -1,3 +1,16 @@
+# leftcens (development version)
+
+* Descriptive statistics are now data-frame-first, mirroring the imputation
+  side. `as_cens_list()` turns a wide laboratory table into a named list of
+  `cens_data` (one per analyte) --- supporting both `.left`/`.right` column pairs
+  and value-plus-qualifier-flag columns --- and that list feeds `desc_np()`,
+  `desc_sp()`, and `build_bounds()` directly.
+* `desc_np()` and `desc_sp()` now accept a list (or `cens_list`) of analytes and
+  return a `cens_np_fits` / `cens_sp_fits` collection. `print()`,
+  `as.data.frame()`, `tidy()`, `glance()`, `quantile()` (non-parametric), and
+  `plot()` (non-parametric) combine the analytes into one table or overlay ---
+  no more `lapply()`.
+
 # leftcens 0.4.1
 
 * New vignette "Preparing your own data for leftcens" --- a step-by-step

@@ -38,29 +38,43 @@ np_surv_curve <- function(object) {
 #' fitting on the original scale simply means the resulting quantiles are
 #' reported directly as concentrations.
 #'
-#' @param x A `cens_data` object (see [as_interval_data()]).
+#' @param x A `cens_data` object (see [as_interval_data()]) for a single
+#'   analyte, **or** a named list / `cens_list` of them (see [as_cens_list()])
+#'   to summarise several analytes at once.
 #' @param method NPMLE algorithm. `"turnbull"` (default) uses
 #'   [survival::survfit()] with `type = "interval2"`; `"wang"` uses
 #'   [icenReg::ic_np()] (the EMICM algorithm).
 #'
-#' @return A `cens_np_fit` object: a list with the fitted `fit`, the `method`
-#'   and `backend` used, `log_transform`, the number of observations `n`, the
-#'   number of rows `dropped` for missing bounds, and the `category` counts.
+#' @return For a single `cens_data`, a `cens_np_fit` object: a list with the
+#'   fitted `fit`, the `method` and `backend` used, `log_transform`, the number
+#'   of observations `n`, the number of rows `dropped` for missing bounds, the
+#'   `category` counts, and the `detection_limit` / `quantitation_limit`. For a
+#'   list of analytes, a `cens_np_fits` collection (a named list of the above)
+#'   with `print()`, `quantile()`, `as.data.frame()`, `tidy()`, `glance()`, and
+#'   `plot()` methods that combine the analytes into one table or overlay plot.
 #'
-#' @seealso [quantile.cens_np_fit()] for quantile extraction and
-#'   [plot.cens_np_fit()] for the cumulative-distribution plot.
+#' @seealso [quantile.cens_np_fit()] for quantile extraction,
+#'   [plot.cens_np_fit()] for the cumulative-distribution plot, and
+#'   [as_cens_list()] to build the multi-analyte input from a wide data frame.
 #'
 #' @examples
 #' x <- as_interval_data(left = c(0, 1, 5, 8), right = c(1, 3, 5, 8))
 #' fit <- desc_np(x)
 #' quantile(fit)
+#'
+#' # several analytes at once
+#' d <- data.frame(A.left = c(0, 2, 5), A.right = c(1, 4, 5),
+#'                 B.left = c(3, 0, 7), B.right = c(3, 1, 7))
+#' as.data.frame(desc_np(as_cens_list(d)))
 #' @export
 desc_np <- function(x, method = c("turnbull", "wang")) {
-  if (!is_cens_data(x)) {
-    stop("`x` must be a <cens_data> object; see `as_interval_data()`.",
-         call. = FALSE)
-  }
   method <- match.arg(method)
+  if (!is_cens_data(x)) {
+    # multi-analyte: a (named) list / cens_list of cens_data objects
+    cols <- as_cens_data_list(x)
+    fits <- lapply(cols, function(cd) desc_np(cd, method = method))
+    return(structure(fits, class = "cens_np_fits"))
+  }
 
   b <- cens_original_bounds(x)
   lo <- b$lo[b$keep]

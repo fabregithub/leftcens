@@ -7,7 +7,9 @@
 desc_sp(x, covariates = NULL, model = c("ph", "po"), bs_samples = 0)
 }
 \arguments{
-\item{x}{A \code{cens_data} object (see \code{\link[=as_interval_data]{as_interval_data()}}).}
+\item{x}{A \code{cens_data} object (see \code{\link[=as_interval_data]{as_interval_data()}}) for a single
+analyte, \strong{or} a named list / \code{cens_list} of them (see \code{\link[=as_cens_list]{as_cens_list()}})
+to fit several analytes against the same covariates at once.}
 
 \item{covariates}{Optional covariates aligned to \code{x} (one row/element per
 observation): a data frame, an atomic vector, a factor, or \code{NULL} for an
@@ -21,9 +23,11 @@ and p-values. The default \code{0} fits point estimates only (fast and
 deterministic); set it higher for inference via \code{\link[=summary]{summary()}}.}
 }
 \value{
-A \code{cens_sp_fit} object: a list with the fitted \code{fit}, the \code{model},
-the \code{covariates} names, \code{log_transform}, the number of observations \code{n},
-the count \code{dropped} for missing bounds, and the \code{category} counts.
+For a single \code{cens_data}, a \code{cens_sp_fit} object (fitted \code{fit},
+\code{model}, \code{covariates} names, \code{log_transform}, \code{n}, \code{dropped}, \code{category}
+counts). For a list of analytes, a \code{cens_sp_fits} collection with \code{print()},
+\code{as.data.frame()}, \code{tidy()}, and \code{glance()} methods that stack the analytes'
+coefficient tables.
 }
 \description{
 Fits a semi-parametric proportional-hazards or proportional-odds model to a
@@ -46,5 +50,6 @@ fit <- desc_sp(x, covariates = grp, model = "ph")
 fit
 }
 \seealso{
-\code{\link[=plot.cens_sp_fit]{plot.cens_sp_fit()}} for baseline / per-group distribution curves.
+\code{\link[=plot.cens_sp_fit]{plot.cens_sp_fit()}} for baseline / per-group distribution curves,
+and \code{\link[=as_cens_list]{as_cens_list()}} to build the multi-analyte input from a data frame.
 }

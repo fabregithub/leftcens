@@ -7,16 +7,22 @@
 desc_np(x, method = c("turnbull", "wang"))
 }
 \arguments{
-\item{x}{A \code{cens_data} object (see \code{\link[=as_interval_data]{as_interval_data()}}).}
+\item{x}{A \code{cens_data} object (see \code{\link[=as_interval_data]{as_interval_data()}}) for a single
+analyte, \strong{or} a named list / \code{cens_list} of them (see \code{\link[=as_cens_list]{as_cens_list()}})
+to summarise several analytes at once.}
 
 \item{method}{NPMLE algorithm. \code{"turnbull"} (default) uses
 \code{\link[survival:survfit]{survival::survfit()}} with \code{type = "interval2"}; \code{"wang"} uses
 \code{\link[icenReg:ic_np]{icenReg::ic_np()}} (the EMICM algorithm).}
 }
 \value{
-A \code{cens_np_fit} object: a list with the fitted \code{fit}, the \code{method}
-and \code{backend} used, \code{log_transform}, the number of observations \code{n}, the
-number of rows \code{dropped} for missing bounds, and the \code{category} counts.
+For a single \code{cens_data}, a \code{cens_np_fit} object: a list with the
+fitted \code{fit}, the \code{method} and \code{backend} used, \code{log_transform}, the number
+of observations \code{n}, the number of rows \code{dropped} for missing bounds, the
+\code{category} counts, and the \code{detection_limit} / \code{quantitation_limit}. For a
+list of analytes, a \code{cens_np_fits} collection (a named list of the above)
+with \code{print()}, \code{quantile()}, \code{as.data.frame()}, \code{tidy()}, \code{glance()}, and
+\code{plot()} methods that combine the analytes into one table or overlay plot.
 }
 \description{
 Fits a non-parametric maximum-likelihood estimate (NPMLE) of the distribution
@@ -37,8 +43,14 @@ reported directly as concentrations.
 x <- as_interval_data(left = c(0, 1, 5, 8), right = c(1, 3, 5, 8))
 fit <- desc_np(x)
 quantile(fit)
+
+# several analytes at once
+d <- data.frame(A.left = c(0, 2, 5), A.right = c(1, 4, 5),
+                B.left = c(3, 0, 7), B.right = c(3, 1, 7))
+as.data.frame(desc_np(as_cens_list(d)))
 }
 \seealso{
-\code{\link[=quantile.cens_np_fit]{quantile.cens_np_fit()}} for quantile extraction and
-\code{\link[=plot.cens_np_fit]{plot.cens_np_fit()}} for the cumulative-distribution plot.
+\code{\link[=quantile.cens_np_fit]{quantile.cens_np_fit()}} for quantile extraction,
+\code{\link[=plot.cens_np_fit]{plot.cens_np_fit()}} for the cumulative-distribution plot, and
+\code{\link[=as_cens_list]{as_cens_list()}} to build the multi-analyte input from a wide data frame.
 }

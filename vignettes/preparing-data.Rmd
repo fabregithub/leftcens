@@ -75,34 +75,31 @@ a detected-not-quantified value is `(MDL, LCMRL)`, and a quantified value has
 Turn each analyte's `.left` / `.right` column pair into a `cens_data` object. A
 short loop over the analyte names does it:
 
-```{r build-cens}
-cens_list <- lapply(analytes, function(a) {
-  as_interval_data(left  = dat[[paste0(a, ".left")]],
-                   right = dat[[paste0(a, ".right")]])
-})
-names(cens_list) <- analytes
+`as_cens_list()` reads the whole wide table at once, building one `cens_data`
+per analyte from its `.left` / `.right` column pair:
 
-cens_list$A
+```{r build-cens}
+cens_list <- as_cens_list(dat)   # infers analytes A-E from the column names
+cens_list
 ```
 
-`as_interval_data()` classifies each row for you (the printout shows the tier
-counts), and by default stores bounds on the log scale (`log_transform = TRUE`),
-which is what the imputation and NPMLE machinery expect. Keep the `ID` column
-aside --- `leftcens` works on the analyte columns; you re-attach IDs afterward by
-row order.
+It classifies every row for you (the printout shows the tier counts per analyte)
+and stores bounds on the log scale (`log_transform = TRUE`), which is what the
+imputation and NPMLE machinery expect. Keep the `ID` column aside ---
+`as_cens_list()` ignores columns that are not analyte pairs, and you re-attach
+IDs afterward by row order.
 
-## Descriptive summaries, per analyte
+## Descriptive summaries, all analytes at once
 
-`desc_np()` gives a non-parametric distribution summary for one analyte. Loop
-over the list to summarise all of them, and use the `as.data.frame()` method to
-collect the quantiles into one tidy table:
+`desc_np()` accepts the whole list and summarises every analyte in one call.
+`as.data.frame()` then collects the quantiles into one tidy table (and `quantile()`
+gives a compact analyte-by-percentile matrix):
 
 ```{r desc}
-np <- lapply(cens_list, desc_np)
+np <- desc_np(cens_list)
+np                                # analyte x percentile matrix
 
-summary_tbl <- do.call(rbind, lapply(analytes, function(a) {
-  cbind(analyte = a, as.data.frame(np[[a]], probs = c(0.25, 0.5, 0.75)))
-}))
+summary_tbl <- as.data.frame(np, probs = c(0.25, 0.5, 0.75))
 knitr::kable(summary_tbl, digits = 2,
              caption = "Quantiles per analyte (NA = below the quantitation limit)")
 ```
@@ -110,7 +107,8 @@ knitr::kable(summary_tbl, digits = 2,
 Quantiles that fall below an analyte's quantitation limit come back as `NA`:
 there the estimate would be an extrapolation into the censored region rather than
 a reliably quantified value. (Pass `ql = 0` to `as.data.frame()` /
-`quantile()` if you want the raw estimates.)
+`quantile()` if you want the raw estimates.) `desc_sp()` works the same way on a
+list, and `tidy()` / `glance()` are available for both.
 
 ## Impute the censored values
 
@@ -164,29 +162,22 @@ lab <- data.frame(
 knitr::kable(lab, caption = "Flagged wide data: a value and a qualifier per analyte")
 ```
 
-Convert one value/flag pair to `(left, right)` with a small helper: a flagged
-non-detect becomes `(0, value)` (the value is the limit); anything else is an
-exact `(value, value)`.
+`as_cens_list()` reads this layout too with `format = "flagged"` --- a flagged
+non-detect becomes `(0, value)` (the value is the limit), anything else an exact
+`(value, value)`. Set `nd_flags` to whichever codes your lab uses:
 
-```{r flag-helper}
-flag_to_cens <- function(value, flag, nd_flags = c("<", "ND", "U")) {
-  nd <- flag %in% nd_flags
-  as_interval_data(left = ifelse(nd, 0, value), right = value)
-}
-
-lab_analytes <- c("A", "B")
-lab_cens <- lapply(lab_analytes, function(a) {
-  flag_to_cens(lab[[a]], lab[[paste0(a, ".flag")]])
-})
-names(lab_cens) <- lab_analytes
-lab_cens$A
+```{r flag-list}
+lab_cens <- as_cens_list(lab, format = "flagged", nd_flags = c("<", "ND", "U"))
+lab_cens
 ```
 
-From here it is identical to the sections above: `desc_np()` per analyte,
-`build_bounds(lab_cens)`, `gsimp_impute()`. If you also have a
+From here it is identical to the sections above: `desc_np(lab_cens)`,
+`build_bounds(lab_cens) |> gsimp_impute()`. If you also have a
 detected-not-quantified qualifier (e.g. `"J"`) and know each analyte's
-quantitation limit `lcmrl`, extend the helper to place those rows in the middle
-tier --- `left = mdl`, `right = lcmrl` --- so all three tiers are represented.
+quantitation limit, place those rows in the middle tier (`left = MDL`,
+`right = LCMRL`) by building the `left`/`right` columns yourself and calling
+`as_cens_list()` on the `"left_right"` layout, so all three tiers are
+represented.
 
 ### Other single-column formats
 

@@ -18,7 +18,9 @@ reference:
   contents:
   - as_interval_data
   - as_interval_data_from_single
+  - as_cens_list
   - is_cens_data
+  - is_cens_list
 
 - title: Descriptive statistics
   desc: Non-parametric and semi-parametric summaries of censored data.
@@ -27,9 +29,13 @@ reference:
   - quantile.cens_np_fit
   - plot.cens_np_fit
   - as.data.frame.cens_np_fit
+  - quantile.cens_np_fits
+  - plot.cens_np_fits
+  - as.data.frame.cens_np_fits
   - desc_sp
   - plot.cens_sp_fit
   - as.data.frame.cens_sp_fit
+  - as.data.frame.cens_sp_fits
 
 - title: Imputation
   desc: Per-cell bounds and Gibbs-sampler imputation.
