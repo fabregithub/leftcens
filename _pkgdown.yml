@@ -11,6 +11,7 @@ articles:
   - preparing-data
   - imputation-bounds
   - imputation-guidance
+  - reporting-guidance
 
 reference:
 - title: Data model

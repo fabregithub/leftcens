@@ -160,3 +160,5 @@ preflight_from_data(cl, n_rep = 30, M = 20)
   sampler work, with a recovery demonstration.
 - `vignette("imputation-guidance")` --- how much censoring can be imputed
   reliably (and how to check for your design).
+- `vignette("reporting-guidance")` --- how to present censored-data results
+  honestly in a report or paper.

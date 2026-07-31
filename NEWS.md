@@ -1,3 +1,10 @@
+# leftcens (development version)
+
+* New vignette "Reporting censored-data results" --- how to present
+  censored-measurement results honestly (detection frequency and limits, when the
+  median/mean are estimable, `< LCMRL` reporting, imputation disclosure with
+  Rubin pooling, and citation), complementing the reliability guidance.
+
 # leftcens 0.5.0
 
 * Two example data sets, `groundwater` (three-tier `.left`/`.right` layout) and

@@ -1,0 +1,146 @@
+---
+title: "Reporting censored-data results"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Reporting censored-data results}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r setup}
+library(leftcens)
+```
+
+This vignette is about **how to present** censored-measurement results in a report
+or paper. It complements `vignette("imputation-guidance")`, which is about *when*
+imputation is trustworthy; here we assume you have run the analysis and need to
+write it up honestly.
+
+## Non-detects: report the limit, not a substitute
+
+The single most important rule: **do not replace non-detects with a made-up
+number** (zero, the detection limit, or `MDL/2`) and then report ordinary
+statistics on the result. That bias is exactly what `leftcens` exists to avoid.
+Instead:
+
+- Report a non-detect as **`< MDL`** (or as the interval), and state the method
+  detection limit (MDL) and, where relevant, the quantitation limit (LCMRL).
+- Report summary statistics computed by the censoring-aware tools
+  (`desc_np()` / `desc_sp()`), not by substitution.
+- If you imputed, say so explicitly (see below) --- imputed values are model
+  outputs, not measurements.
+
+## Which statistics to report, and when
+
+Whether a statistic is even estimable depends on how much of the data is
+censored, per analyte. A useful hierarchy:
+
+- **Detection frequency** (the percentage detected) is *always* reportable and
+  should be, whatever the censoring --- it is a fact about the data.
+- **The median** is directly estimable when **fewer than 50% are non-detects**
+  (the median then sits at or above the limit).
+- **The mean and low quantiles** are trustworthy only under light censoring; the
+  `desc_np()` NPMLE estimates them accounting for censoring, but they become
+  unreliable as non-detects grow (see `vignette("imputation-guidance")`).
+
+`leftcens` records the limits and returns quantiles below the quantitation limit
+as `NA`, which is precisely what you want when tabulating: a blank/`< LCMRL`
+rather than a spurious number. A reporting table falls out of `glance()` and
+`quantile()`:
+
+```{r report-table}
+cl <- as_cens_list(groundwater)
+np <- desc_np(cl)
+
+g <- glance(np)
+q <- quantile(np, probs = c(0.5, 0.9))       # NA below the quantitation limit
+
+report <- data.frame(
+  Analyte      = g$analyte,
+  n            = g$nobs,
+  `Detected %` = round(100 * (1 - g$n_non_detect / g$nobs)),
+  MDL          = g$detection_limit,
+  LCMRL        = g$quantitation_limit,
+  Median       = q[g$analyte, "50%"],
+  `90th pct`   = q[g$analyte, "90%"],
+  check.names  = FALSE
+)
+knitr::kable(report, digits = 2,
+             caption = "A reportable summary: detection frequency, limits, and estimable quantiles")
+```
+
+Read an `NA` median as "**< LCMRL**": more than half of those samples were below
+the quantitation limit, so the median is not a quantified value. Report it that
+way rather than forcing a number. A limit shown as `NA` (e.g. the Zn `MDL` here)
+just means that tier did not occur in the data --- no sample was a Zn non-detect,
+so no detection limit is derivable; report your laboratory's stated limit
+instead.
+
+## When an analyte is too censored for point summaries
+
+If an analyte has more than roughly 50% non-detects, do **not** report an imputed
+mean or median as if measured. Report instead:
+
+- the **detection frequency** and the **MDL/LCMRL**;
+- optionally an **interval-censored descriptive summary** (`desc_np()` gives the
+  NPMLE of the distribution, and any estimable upper quantiles);
+- a statement that lower summaries are not reliably estimable at that censoring
+  level.
+
+This is honest and still informative --- "arsenic was detected in 25% of samples;
+the 90th percentile was 7.5 ug/L; the median was below the 2.0 ug/L reporting
+limit" says exactly what the data support.
+
+## Reporting imputed values
+
+If you used `gsimp_impute()` to produce complete values (for a downstream model),
+disclose it. State:
+
+- **what** was imputed (which analytes/cells) and **why** (e.g. to fit a model
+  that cannot accept intervals);
+- the **method** --- a Gibbs sampler drawing each censored value from a truncated
+  distribution within its interval, using the censored (`"tobit"`) conditional
+  model --- and the settings (`imp_model`, `iters_all`, and, for multiple
+  imputation, `M`);
+- that multiple imputations were **pooled by Rubin's rules** (if you did so), and
+  report the pooled estimate *with its multiple-imputation uncertainty*, not a
+  single completed data set as if it were measured;
+- a **reliability caveat**: imputation is dependable to roughly 50% non-detects
+  (see `vignette("imputation-guidance")`); analytes beyond that were summarised
+  descriptively instead.
+
+For reproducibility, report the package version and the random seed:
+
+```{r repro}
+utils::packageVersion("leftcens")
+```
+
+### Citation
+
+Cite the package and, because the imputation follows the GSimp method, the GSimp
+paper:
+
+```{r cite, eval = FALSE}
+citation("leftcens")
+```
+
+> Wei R. *et al.* (2018) GSimp: A Gibbs sampler based left-censored missing value
+> imputation approach for metabolomics studies. *PLoS Comput. Biol.*
+> 14(1):e1005973.
+
+## A reporting checklist
+
+- Report **detection frequency** and the **MDL/LCMRL** for every analyte.
+- Never substitute a number for a non-detect and then report ordinary
+  statistics; report `< MDL` / `< LCMRL` or use the censoring-aware summaries.
+- Report the **median** only where non-detects are below 50%; otherwise report it
+  as `< LCMRL`.
+- If you **imputed**, disclose the method, settings, and (for multiple
+  imputation) Rubin pooling with its uncertainty; flag analytes beyond the
+  reliable range as descriptive-only.
+- Report the **package version**, the **random seed**, and cite the **GSimp
+  paper** for the imputation.
