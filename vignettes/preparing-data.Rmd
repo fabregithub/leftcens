@@ -16,10 +16,9 @@ set.seed(1)
 library(leftcens)
 ```
 
-This vignette is the practical on-ramp: how to get a typical laboratory data set
-into `leftcens`, run the descriptive summaries, and impute --- starting from a
-wide table of per-analyte lower/upper bounds. If you have not met the data model
-yet, skim `vignette("getting-started")` first.
+This vignette is about one thing: **getting your data into `leftcens`**, whatever
+shape it arrives in. Once it is in, `vignette("getting-started")` shows what to do
+with it (descriptive summaries, imputation).
 
 ## The one thing to get right
 
@@ -34,138 +33,60 @@ shapes:
 | Detected, not quantified | between MDL and the quantitation limit (LCMRL) | `MDL` | `LCMRL` |
 | Quantified | an actual measurement | `value` | `value` |
 
-So the whole task of "preparing your data" is: **produce a `left` and a `right`
-column for each analyte.** Once you have those, `as_interval_data()` does the
-rest (it even derives which tier each row is in).
+So the whole task is: **produce a `left` and a `right` for each measurement.**
+The sections below cover the layouts labs actually export. `as_cens_list()`
+handles the two wide layouts directly and returns a named list of `cens_data`
+(one per analyte) --- exactly what `desc_np()`, `desc_sp()`, and `build_bounds()`
+consume. Read your file first with `read.csv()` / `readxl::read_excel()`.
 
-## Starting from a wide lab export
+## Layout 1: lower/upper bound columns
 
-The package ships two small example data sets in the two shapes labs most often
-export. `groundwater` has one row per sample and a `.left` / `.right` bound pair
-per metal --- the full three-tier interval layout:
+Each analyte already has a `.left` and a `.right` column, carrying the full
+three-tier structure. The bundled `groundwater` data set has this shape:
 
-```{r show-data}
-# groundwater has 11 columns (sample_id + 5 metals x .left/.right);
-# columns 1:7 are sample_id and the first 3 metals -- shown to keep it readable
-knitr::kable(head(groundwater[, 1:7]),
-             caption = "groundwater: one row per sample, .left/.right per metal (first 3 shown)")
+```{r lr-data}
+# 11 columns (sample_id + 5 metals x .left/.right); first 3 metals shown
+knitr::kable(head(groundwater[, 1:7]))
 ```
 
-Read your own file with `dat <- read.csv("yourfile.csv")` (or
-`readxl::read_excel()`) so it has this shape. The tiers show up directly: a
-non-detect is `(0, MDL)`, a detected-not-quantified value is `(MDL, LCMRL)`, and
-a quantified value has `left == right`.
+`as_cens_list()` infers the analytes from the `.left`/`.right` column names:
 
-## Build one `cens_data` per analyte
-
-Turn each analyte's `.left` / `.right` column pair into a `cens_data` object. A
-short loop over the analyte names does it:
-
-`as_cens_list()` reads the whole wide table at once, building one `cens_data`
-per analyte from its `.left` / `.right` column pair:
-
-```{r build-cens}
-cens_list <- as_cens_list(groundwater)   # infers the metals from the column names
+```{r lr-list}
+cens_list <- as_cens_list(groundwater)
 cens_list
 ```
 
-It classifies every row for you (the printout shows the tier counts per analyte)
-and stores bounds on the log scale (`log_transform = TRUE`), which is what the
-imputation and NPMLE machinery expect. Keep the `ID` column aside ---
-`as_cens_list()` ignores columns that are not analyte pairs, and you re-attach
-IDs afterward by row order.
+Custom suffixes are supported (e.g. `left_suffix = "_lo"`), and you can name the
+analytes explicitly with `analytes = c("As", "Cd", ...)`.
 
-## Descriptive summaries, all analytes at once
+## Layout 2: a value plus a qualifier flag
 
-`desc_np()` accepts the whole list and summarises every analyte in one call.
-`as.data.frame()` then collects the quantiles into one tidy table (and `quantile()`
-gives a compact analyte-by-percentile matrix):
-
-```{r desc}
-np <- desc_np(cens_list)
-np                                # analyte x percentile matrix
-
-summary_tbl <- as.data.frame(np, probs = c(0.25, 0.5, 0.75))
-knitr::kable(summary_tbl, digits = 2,
-             caption = "Quantiles per analyte (NA = below the quantitation limit)")
-```
-
-Quantiles that fall below an analyte's quantitation limit come back as `NA`:
-there the estimate would be an extrapolation into the censored region rather than
-a reliably quantified value. (Pass `ql = 0` to `as.data.frame()` /
-`quantile()` if you want the raw estimates.) `desc_sp()` works the same way on a
-list, and `tidy()` / `glance()` are available for both.
-
-## Impute the censored values
-
-To fill the censored cells --- for example to feed a downstream model that cannot
-take intervals --- pass the whole list to `build_bounds()` and `gsimp_impute()`:
-
-```{r impute}
-bounds <- build_bounds(cens_list)
-filled_log <- gsimp_impute(bounds)          # default censored ("tobit") model
-
-# results are on the log scale; back-transform to original units
-filled <- round(exp(filled_log), 2)
-filled_with_id <- data.frame(sample_id = groundwater$sample_id, filled)
-knitr::kable(head(filled_with_id), caption = "Completed analyte matrix (original units)")
-```
-
-Every imputed value lies within its interval by construction; observed
-(quantified) cells are returned unchanged.
-
-### Will imputation be reliable for your data?
-
-Before trusting imputed values, run a pre-flight check: it simulates data like
-yours and reports the bias and coverage you can expect, flagging analytes with
-too much censoring (see `vignette("imputation-guidance")`).
-
-```{r preflight, eval = FALSE}
-preflight_from_data(cens_list, n_rep = 30, M = 20)
-```
-
-## If your data looks different
-
-You still just need a `left` and a `right` per measurement. Common starting
-points:
-
-### A wide table of values with qualifier flags
-
-Most lab exports are not pre-split into `left`/`right`. More often each analyte
-has a **value column and a qualifier-flag column** --- the value plus a code such
-as `"<"` / `"ND"` / `"U"` for a non-detect (where the reported number is the
-detection or reporting limit) and a blank for a quantified result. The bundled
-`surfacewater` data set has this shape:
+More often each analyte has a **value column and a qualifier-flag column** --- the
+value plus a code such as `"<"` / `"ND"` / `"U"` for a non-detect (where the
+reported number is the detection or reporting limit) and a blank for a quantified
+result. The bundled `surfacewater` data set has this shape:
 
 ```{r flag-data}
-# surfacewater has 11 columns (sample_id + 5 metals x value/.flag);
-# columns 1:7 are sample_id and the first 3 metals
-knitr::kable(head(surfacewater[, 1:7]),
-             caption = "surfacewater: a value and a qualifier per metal (first 3 shown)")
+# 11 columns (sample_id + 5 metals x value/.flag); first 3 metals shown
+knitr::kable(head(surfacewater[, 1:7]))
 ```
 
-`as_cens_list()` reads this layout with `format = "flagged"` --- a flagged
-non-detect becomes `(0, value)` (the value is the limit), anything else an exact
-`(value, value)`. Set `nd_flags` to whichever codes your lab uses:
+Use `format = "flagged"`, setting `nd_flags` to whichever codes mark a
+non-detect. A flagged non-detect becomes `(0, value)` (the value being the
+limit); anything else is an exact `(value, value)`:
 
 ```{r flag-list}
-sw_cens <- as_cens_list(surfacewater, format = "flagged", nd_flags = "<")
+sw_cens <- as_cens_list(surfacewater, format = "flagged", nd_flags = c("<", "ND", "U"))
 sw_cens
 ```
 
-From here it is identical to the sections above: `desc_np(sw_cens)`,
-`build_bounds(sw_cens) |> gsimp_impute()`. If you also have a
-detected-not-quantified qualifier (e.g. `"J"`) and know each analyte's
-quantitation limit, place those rows in the middle tier (`left = MDL`,
-`right = LCMRL`) by building the `left`/`right` columns yourself and calling
-`as_cens_list()` on the `"left_right"` layout, so all three tiers are
-represented.
+`as_cens_list()` ignores columns that are not analyte pairs (such as
+`sample_id`), which you re-attach by row order afterward.
 
-### Other single-column formats
+## Layout 3: a value plus a "censored" flag (single detection limit)
 
-**A value plus a "censored" flag (single detection limit).** This is the classic
-Helsel-style format --- one number per row and a `TRUE`/`FALSE` for whether it was
-below the limit:
+The classic Helsel-style format --- one number per row and a `TRUE`/`FALSE` for
+whether it was below the limit --- has a dedicated constructor:
 
 ```{r single}
 value    <- c(2.0, 5.1, 0.8, 3.3)
@@ -173,30 +94,53 @@ censored <- c(FALSE, FALSE, TRUE, FALSE)   # TRUE = non-detect at that value
 as_interval_data_from_single(value, censored)
 ```
 
-**A value plus a per-row detection limit.** If non-detects are recorded as the
-limit with a flag, build the pair yourself:
+## Layout 4: a value plus a per-row detection limit
+
+If non-detects are recorded separately from the limit, build the `left`/`right`
+pair yourself and call `as_interval_data()`:
 
 ```{r perrow}
 result <- c(2.0, NA, 5.1, NA)      # measured value, NA where not detected
 dl     <- c(0.5, 0.5, 0.5, 0.7)    # detection limit for that row
 nd     <- is.na(result)
-left  <- ifelse(nd, 0,  result)
-right <- ifelse(nd, dl, result)
+as_interval_data(left  = ifelse(nd, 0,  result),
+                 right = ifelse(nd, dl, result))
+```
+
+## Building the three-tier structure yourself
+
+`format = "flagged"` produces the two-tier structure (non-detect vs quantified).
+If you also have a detected-not-quantified qualifier (e.g. `"J"`) and know each
+analyte's MDL and LCMRL, place those rows in the middle tier by constructing the
+bounds directly:
+
+```{r three-tier}
+value <- c(0.3, 1.2, 4.8, 0.1)
+flag  <- c("<", "J",  "",  "<")     # "<" non-detect, "J" detected-not-quantified
+mdl <- 0.5; lcmrl <- 2.0
+left  <- ifelse(flag == "<", 0,   ifelse(flag == "J", mdl,   value))
+right <- ifelse(flag == "<", mdl, ifelse(flag == "J", lcmrl, value))
 as_interval_data(left, right)
 ```
 
+The same idea works column-by-column across a wide table, then combine the
+per-analyte results into a named list (as `as_cens_list()` does internally).
+
 **Fully quantified data (no censoring).** Set `left == right == value`; those
-rows are treated as exact and nothing special happens.
+rows are treated as exact.
 
 ## A short checklist
 
-- One `left` and one `right` column per analyte, with `left <= right`.
+- One `left` and one `right` per measurement, with `left <= right`.
 - Non-detects: `left = 0`, `right = MDL`. Do **not** substitute the limit or
-  `MDL/2` yourself --- let `leftcens` handle the censoring.
+  `MDL/2` yourself --- let `leftcens` model the censoring.
 - Keep concentrations on their natural (original) scale; leave
   `log_transform = TRUE` (the default) so `left = 0` maps to the expected
   non-detect bound.
 - Keep sample IDs in a separate column and re-attach by row order.
 - Check each analyte's non-detect fraction (`mean(x$category == "non_detect")`)
-  --- above ~50% ND, prefer interval-censored *descriptive* summaries over
-  trusting imputed point values.
+  --- above ~50%, prefer interval-censored *descriptive* summaries over trusting
+  imputed point values.
+
+With the data prepared, head to `vignette("getting-started")` to summarise and
+impute it.
