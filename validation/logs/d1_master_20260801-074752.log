@@ -1,0 +1,6 @@
+[07:47:52] D1 sequence starting: models=[tobit ridge]
+[07:47:52] >>> starting model=tobit  (log: validation/logs/d1_tobit_20260801-074752.log)
+[04:22:38] <<< finished model=tobit  OK
+[04:22:38] >>> starting model=ridge  (log: validation/logs/d1_ridge_20260801-074752.log)
+[06:37:12] <<< finished model=ridge  OK
+[06:37:12] D1 sequence complete.

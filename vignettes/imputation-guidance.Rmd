@@ -20,18 +20,22 @@ This vignette gives practical guidance for `gsimp_impute()`: which model to use,
 how to set the knobs, how much censoring you can impute through, and how to
 sanity-check your own data. It summarises a Monte Carlo validation study that
 ships with the package source (in `validation/`); the numbers below come from
-that study and are directional (moderate replication) --- see
-`validation/RESEARCH_PLAN.md` for the full design and the definitive-run recipe.
+that study --- now confirmed by a definitive high-replication run (500
+replications, `M = 50`) --- see `validation/RESEARCH_PLAN.md` for the full design.
 
 ## The short version
 
 - **Use the default model (`imp_model = "tobit"`).** It fits an
   interval-censored regression on observed *and* censored rows, so it is not
   fooled by the fact that censored values are the small ones.
-- **You can reliably impute an analyte with up to ~50% non-detects.** Below 50%
-  ND the median is still directly estimable, and in simulation the default model
-  keeps the mean essentially unbiased and its intervals calibrated across that
-  whole range.
+- **The median is reliably recovered up to ~50% non-detects** --- whether the
+  data are log-normal or right-skewed. It is the estimand to lead with: below 50%
+  ND the median sits at or above the detection limit, so it is directly
+  estimable.
+- **The log-scale *mean* is equally reliable when the data are roughly
+  log-normal**, but under strong right-skew it is biased downward once censoring
+  passes ~35% ND (see below) --- report the median, and check with a pre-flight
+  run when skew is visible.
 - **Defaults are ample:** `iters_all = 10` sweeps and `M = 20` imputations.
 - **Co-impute a moderate set of analytes** (roughly 10-50) for best precision,
   though the method is valid well outside that range.
@@ -46,18 +50,36 @@ imputing." We call an analyte *reliably imputed* when the mean bias is small
 (|bias| <= 0.10 on the log scale) **and** the 95% multiple-imputation interval
 covers the truth ~95% of the time.
 
-In the validation study the default model met both criteria up to ~49% ND, with
-the median recovered exactly (it is not even censored below 50% ND). The
-observed-only models (`ridge`, `lm`, `glmnet`) only reach ~25% ND before their
-intervals stop covering --- which is why `tobit` is the default.
+The definitive run (500 replications, `M = 50`) shows this target holds with one
+important qualification --- **it depends on the shape of the margins, not just
+the censoring fraction:**
+
+- **The median is recovered across the whole ND < 50% range, log-normal or
+  skewed.** Below 50% ND the median is at or above the limit, so it is observed
+  rather than imputed; its bias was ~0 in every condition. This is the estimand
+  to report.
+- **The log-scale mean is reliable only when the data are approximately
+  log-normal.** With symmetric margins the default keeps the mean unbiased and
+  its intervals calibrated all the way to ~55% ND. But under substantial
+  right-skew the mean acquires a downward bias that grows with censoring --- small
+  at 15% ND, but exceeding the |bias| <= 0.10 tolerance by ~35% ND --- because the
+  linear-Gaussian conditional model underestimates the skewed lower tail it is
+  imputing into. With larger `n` the intervals also tighten around that bias, so
+  coverage can fall *below* nominal (bias, not variance, then dominates).
+
+The observed-only models (`ridge`, `lm`, `glmnet`) only reach ~25% ND before
+their intervals stop covering even in the easy (symmetric) case --- which is why
+`tobit` is the default.
 
 ## What the validation established
 
-Across a range of conditions, the default (`tobit`) held the ND < 50% target;
-the observed-only models did not. Summary of the drivers in `validation/`:
+Across a range of conditions the default (`tobit`) recovered the median
+throughout ND < 50%, and the mean too when the margins were roughly log-normal;
+the observed-only models did neither. Summary of the drivers in `validation/`:
 
 | Question | Finding for `tobit` |
 |---|---|
+| Marginal skew (distribution shape) | **The axis that governs mean recovery.** Symmetric/log-normal: mean unbiased to ~55% ND. Strong right-skew: mean biased downward, failing the tolerance by ~35% ND. The median stays exact either way. |
 | Correlation strength | Rescue holds even at zero correlation --- it comes from the per-analyte censored fit, not borrowed information. |
 | Number of analytes (`p`) | Holds from `p = 3` up to `p = 200` (`p/n = 2`, PCA regime). RMSE is lowest around `p = 12-50`. |
 | Non-linear dependence | Rescue holds; unmodelled non-linear dependence costs *precision* (RMSE), not validity. |
@@ -158,6 +180,13 @@ Monte Carlo study behind these recommendations lives in the source
 - **> 50% ND:** below the target line; the median itself is censored and point
   imputation is no longer dependable. Prefer interval-censored *descriptive*
   summaries (`desc_np()`, `desc_sp()`) over imputed point values.
+- **Right-skewed margins:** the log-scale *mean* can be biased downward once
+  censoring is non-trivial (~35% ND and up), even though the median stays exact.
+  Lead with the median (or interval-censored descriptive summaries), and use a
+  pre-flight run to gauge the mean's bias for your own design.
+- **Larger `n` does not fix a biased mean:** when the mean is biased (e.g. under
+  skew), more samples tighten the intervals around the wrong center and *lower*
+  coverage. Good coverage at small `n` is not by itself evidence of low bias.
 - **Very small `n`:** with only a handful of observed values per analyte the
   conditional fit is unstable regardless of model.
 - **Strongly non-linear dependence:** valid but less precise (wider intervals);

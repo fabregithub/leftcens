@@ -8,13 +8,17 @@ Rbuildignored).
 
 1. `git pull`, then install so the scripts' `library(leftcens)` resolves:
    `R CMD INSTALL .` (or `devtools::install()`).
-2. **All experiments (E1-E7) and deliverables (D2, D3) are DONE; v0.3.0 is
-   released.** The research program is complete. **The only remaining item is
-   D1 -- the definitive high-replication confirmation** on the workstation:
-   `CONFIG=full N_REP=500 M=50 Rscript validation/mc_validation.R`, plus
-   higher-rep reruns of the per-experiment drivers (each prints its command).
-   A future methodological extension is a non-linear censored conditional model
-   (see E3).
+2. **All experiments (E1-E7), deliverables (D2, D3), AND the D1 capstone are
+   DONE.** The research program is complete. **D1 finished 2026-08-02** (tobit +
+   ridge, full grid, 500 reps, M=50, ~23 h on the 24-core workstation via the
+   parallel driver `validation/run_d1_parallel.R` / `run_d1.sh`). **Headline: the
+   reliability boundary is marginal *skew*, not the censoring fraction.** The
+   median is recovered across the whole ND < 50% range under any skew; the
+   log-scale *mean* holds to ~55% ND when data are log-normal but is biased
+   downward under strong right-skew, failing |bias| <= 0.10 by ~35% ND. Full
+   result in **D1** below. A future methodological extension is a non-linear
+   censored conditional model (see E3), which would also help the skewed-mean
+   case.
 3. Every driver is env-configurable (`N_REP`, `M`, `ITERS_ALL`, grid params)
    for scaling up; see **Recommended order** at the bottom.
 4. Package is at **0.3.0** (tobit default; pre-flight tools; guidance vignette);
@@ -68,9 +72,14 @@ limits.
     **heterogeneous anchors do not rescue** heavily-censored targets;
     right-skew is more forgiving. Common cause: selection bias from fitting on
     upper-truncated observed values.
-  - **tobit** (new default) removes that bias: near-zero bias and near-nominal
-    coverage down to at least ~55% non-detects, at both small and large n; PCA
-    path extends it to wide data.
+  - **tobit** (new default) removes that bias *when the margins are roughly
+    log-normal*: near-zero bias and near-nominal coverage down to ~55%
+    non-detects, at both small and large n; PCA path extends it to wide data.
+    **D1 caveat (skew):** under substantial right-skew the log-scale mean is
+    biased downward as censoring rises (fails the tolerance by ~35% ND) --- the
+    linear-Gaussian conditional model underestimates the skewed lower tail. The
+    median is unaffected (recovered exactly for ND < 50% regardless of skew), so
+    it, not the mean, is the dependable estimand under skew.
 
 ## Framing
 
@@ -174,12 +183,51 @@ paired ridge-vs-tobit designs (same data, only the model differs), as in
 
 ## Deliverables
 
-### D1 — Definitive high-replication run  (point 1)  [WORKSTATION]
-Capstone validation once the axes above settle the design. On the work machine:
+### D1 — Definitive high-replication run  (point 1)  [DONE 2026-08-02]
+Capstone validation. Run **parallelised** on the 24-core / 192 GB workstation
+via `validation/run_d1.sh` (launcher) → `validation/run_d1_parallel.R` (mclapply
+over 36,000 independent scenario×rep tasks; bit-identical to serial; BLAS pinned
+to one thread per worker for the OpenBLAS-pthreads build). Both models on the
+full 72-scenario grid, N_REP=500, M=50: **tobit 20.6 h, ridge 2.2 h**. Results in
+`validation/results/d1_{tobit,ridge}_latest.rds` (+ timestamped rds/csv/summary).
+
 ```bash
-CONFIG=full N_REP=500 M=50 Rscript validation/mc_validation.R      # ~50 hrs
-N_REP=200 M=25 Rscript validation/tobit_vs_ridge.R
+./validation/run_d1.sh                 # MODELS="tobit ridge", full, N_REP=500, M=50
+N_REP=200 M=25 Rscript validation/tobit_vs_ridge.R   # lighter paired companion
 ```
+
+**Result — the boundary is skew, not ND.** Split entirely along marginal skew:
+
+| Condition (ND < 50%) | tobit mean bias | median bias | MI coverage |
+|---|---|---|---|
+| Symmetric (skew 0), 15-35% ND | ~0 | ~0 | ~1.00 |
+| Symmetric, even 55% ND | ~0 (−0.005) | ~0 | ~0.99 |
+| Right-skew (0.75), 15% ND | −0.07 | ~0 | 1.00 |
+| **Right-skew, 35% ND** | **−0.21 (FAIL)** | **~0 (pass)** | 0.18-1.00 |
+| Right-skew, 55% ND | −0.38 | 0.08-0.11 | 0.00-0.59 |
+
+- **Median target: MET across all ND < 50% conditions** (skew or not) --- the
+  median is at/above the limit below 50% ND, so it is observed, not imputed.
+- **Mean target: MET only for ~log-normal margins.** Under strong right-skew the
+  log-scale mean is biased downward, breaching |bias| <= 0.10 by 35% ND (inside
+  the target range). Cause: the linear-Gaussian conditional model underestimates
+  the skewed lower tail; censoring amplifies it.
+- **Large-n hurts a biased mean:** at skew 0.75 / 35% ND, coverage is ~1.00 at
+  n=100 but ~0.2 at n=300 --- tighter intervals around the same bias (bias, not
+  variance, dominates).
+- **tobit vs ridge:** tobit's edge is *calibration* (in-range mean coverage 0.90
+  vs ridge 0.81; at 55% ND ridge covers ~0). In-range point bias is comparable
+  (tobit 0.070, ridge 0.061) because ridge's upward selection bias partly cancels
+  skew's downward bias --- a coincidence that fails at 55% ND.
+
+**Folded into docs:** `vignettes/imputation-guidance.Rmd` (median-first framing,
+skew caveat, large-n coverage note) and the status snapshot above.
+
+**Open follow-ups:** (a) a skew sweep (skew ∈ {0, 0.25, 0.5, 0.75} at 35% ND) to
+map exactly where the mean crosses the tolerance; (b) have `preflight_reliability()`
+factor in estimated skew, since skew (not ND alone) predicts mean failure;
+(c) the non-linear / non-Gaussian censored conditional model (E3 extension) to
+reclaim the skewed-mean case.
 
 ### D2 — Guidance for the best available approach  (point 6)  [DONE]
 Done: `vignettes/imputation-guidance.Rmd` ("How much can you trust the
