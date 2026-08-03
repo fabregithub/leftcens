@@ -1,3 +1,25 @@
+# leftcens 0.7.0
+
+* New skew-robust imputation model `imp_model = "copula"` for `gsimp_impute()`.
+  Right-skewed analytes bias the default `"tobit"` mean-imputation downward under
+  censoring; `"copula"` fits a flexible (sinh-arcsinh) margin per analyte by
+  interval-censored MLE, imputes in latent-Gaussian space with the same censored
+  sampler, and back-transforms --- keeping the mean near-unbiased and its
+  multiple-imputation intervals calibrated under strong skew, across a range of
+  dependence structures. Opt-in; the log-normal default `"tobit"` is unchanged.
+* `gsimp_impute()` gains a `margin_draw` argument (copula only). The recommended
+  multiple-imputation workflow uses the plug-in margin for the point estimate and
+  drawn-margin imputations for the between-imputation variance, so Rubin's-rules
+  intervals stay calibrated at heavy censoring without a point-estimate bias.
+* `preflight_from_data()` now estimates each analyte's marginal skewness (by an
+  interval-censored fit, not the imputed values) and reports the skew-induced mean
+  bias instead of assuming log-normality, recommending `imp_model = "copula"` when
+  it detects material right-skew. `preflight_reliability()` accepts a per-analyte
+  `skew` vector.
+* The imputation-guidance vignette gains a skew-tolerance rule (the mean is
+  reliable while marginal skewness times the non-detect fraction stays below
+  ~0.18) and the copula workflow.
+
 # leftcens 0.6.1
 
 * The "Reporting censored-data results" vignette's summary table now reports a

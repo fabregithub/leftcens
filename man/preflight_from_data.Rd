@@ -22,9 +22,14 @@ A \code{preflight} object; see \code{\link[=preflight_reliability]{preflight_rel
 \description{
 A convenience wrapper around \code{\link[=preflight_reliability]{preflight_reliability()}} that reads the study
 design directly from your \code{cens_data}: it takes the per-analyte non-detect
-fractions from the data, and estimates the log-scale means, spread, and
-correlation from a quick imputation of the data (used only to parameterise
-the simulation). It then runs the pre-flight for that design.
+fractions from the data, fits each analyte's log-scale margin (location,
+spread, and \strong{skewness}) by interval-censored MLE, and estimates the
+correlation from a quick imputation --- all used only to parameterise the
+simulation. It then runs the pre-flight for that design. Estimating the skew
+matters, and from the censored likelihood rather than the imputed values: a
+log-normal assumption would make the report overly optimistic for skewed
+analytes, and a symmetric imputation would hide the skew. Pass an explicit
+\code{skew} to override the estimate.
 }
 \details{
 Because the moments and correlation are estimated (in part from imputed

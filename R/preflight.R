@@ -7,13 +7,17 @@
 # ---- internal simulation / evaluation helpers ------------------------------
 
 #' Simulate correlated log-scale truth (exchangeable correlation, optional skew)
+#'
+#' `skew` is the sinh-arcsinh shape and may be a scalar or a length-`p` vector
+#' (per-analyte skewness).
 #' @keywords internal
 #' @noRd
 pf_simulate <- function(n, p, rho, mu, sd, skew) {
   R <- matrix(rho, p, p)
   diag(R) <- 1
   z <- matrix(stats::rnorm(n * p), n, p) %*% chol(R)
-  if (skew != 0) z <- sinh(asinh(z) + skew)
+  skew <- rep_len(skew, p)
+  if (any(skew != 0)) z <- sinh(sweep(asinh(z), 2, skew, "+"))  # per-analyte skew
   z <- sweep(z, 2, rep_len(sd, p), "*")
   sweep(z, 2, rep_len(mu, p), "+")
 }
@@ -85,7 +89,11 @@ pf_mi_coverage <- function(bounds, z, M, iters_all, imp_model, seed) {
 #'   `[0, 1)`.
 #' @param dnq_frac Detected-not-quantified fraction (the middle tier), scalar or
 #'   length-`p`. Default `0` (pure left-censoring).
-#' @param skew sinh-arcsinh skewness of the marginals (`0` = log-normal).
+#' @param skew sinh-arcsinh skewness of the marginals (`0` = log-normal); scalar
+#'   or length-`p` for per-analyte skewness. [preflight_from_data()] estimates
+#'   this from your data. Right-skew is the main driver of mean-imputation bias, so
+#'   a non-zero value here is what makes the reported reliability honest for
+#'   skewed data.
 #' @param mu,sd Log-scale mean and standard deviation of the analytes; scalar or
 #'   length-`p`. Defaults span a modest range of means at unit sd.
 #' @param n_rep Number of simulated datasets.
@@ -131,6 +139,7 @@ preflight_reliability <- function(n, nd_frac, p = NULL, rho = 0.5,
   if (is.null(mu)) mu <- seq(0, 1.5, length.out = p)
   mu <- rep_len(mu, p)
   sd <- rep_len(sd, p)
+  skew <- rep_len(skew, p)
 
   base <- if (is.null(seed)) sample.int(1e6L, 1L) else as.integer(seed)
   bias <- medbias <- cov <- matrix(NA_real_, n_rep, p)
@@ -179,9 +188,14 @@ preflight_reliability <- function(n, nd_frac, p = NULL, rho = 0.5,
 #'
 #' A convenience wrapper around [preflight_reliability()] that reads the study
 #' design directly from your `cens_data`: it takes the per-analyte non-detect
-#' fractions from the data, and estimates the log-scale means, spread, and
-#' correlation from a quick imputation of the data (used only to parameterise
-#' the simulation). It then runs the pre-flight for that design.
+#' fractions from the data, fits each analyte's log-scale margin (location,
+#' spread, and **skewness**) by interval-censored MLE, and estimates the
+#' correlation from a quick imputation --- all used only to parameterise the
+#' simulation. It then runs the pre-flight for that design. Estimating the skew
+#' matters, and from the censored likelihood rather than the imputed values: a
+#' log-normal assumption would make the report overly optimistic for skewed
+#' analytes, and a symmetric imputation would hide the skew. Pass an explicit
+#' `skew` to override the estimate.
 #'
 #' Because the moments and correlation are estimated (in part from imputed
 #' values), treat the result as an approximate guide to what the imputation can
@@ -212,16 +226,30 @@ preflight_from_data <- function(x, imp_model = "tobit", iters_all = 10, ...) {
   nd_frac <- vapply(cols,
                     function(cd) mean(cd$category == "non_detect", na.rm = TRUE),
                     numeric(1))
-  mu <- colMeans(filled)
-  sd <- apply(filled, 2, stats::sd)
   R <- suppressWarnings(stats::cor(filled))
   rho <- if (p > 1) mean(R[upper.tri(R)], na.rm = TRUE) else 0
   rho <- min(max(rho, 0), 0.95)
   if (!is.finite(rho)) rho <- 0
 
-  preflight_reliability(n = n, nd_frac = nd_frac, p = p, rho = rho,
-                        mu = mu, sd = sd, imp_model = imp_model,
-                        iters_all = iters_all, ...)
+  # Per-analyte margin (location, scale, sinh-arcsinh skew) by interval-censored
+  # MLE. Estimating skew from the censored likelihood is robust; the sample
+  # skewness of the imputed data would be ATTENUATED by a symmetric (tobit) fill,
+  # hiding the very skew that biases the mean. `mu`/`sd` also come from the fit.
+  miss <- bounds$to_impute
+  fits <- lapply(seq_len(p), function(j)
+    fit_shash_margin(filled[!miss[, j], j], bounds$lo_mat[miss[, j], j],
+                     bounds$hi_mat[miss[, j], j]))
+  mu <- vapply(fits, function(f) f$mu, numeric(1))
+  sd <- vapply(fits, function(f) f$sigma, numeric(1))
+  skew_hat <- vapply(fits, function(f) f$eps, numeric(1))
+  skew_hat[!is.finite(skew_hat)] <- 0
+
+  dots <- list(...)
+  if (is.null(dots$skew)) dots$skew <- skew_hat
+
+  do.call(preflight_reliability,
+          c(list(n = n, nd_frac = nd_frac, p = p, rho = rho, mu = mu, sd = sd,
+                 imp_model = imp_model, iters_all = iters_all), dots))
 }
 
 #' @export
@@ -230,7 +258,7 @@ print.preflight <- function(x, ...) {
   cat(sprintf("<preflight> reliability for %d analyte%s, n = %d (%s model)\n",
               cfg$p, if (cfg$p == 1L) "" else "s", cfg$n, cfg$imp_model))
   cat(sprintf("  design: rho=%.2f, dnq=%.2f, skew=%.2f | %d reps, M=%d, iters=%d\n",
-              cfg$rho, mean(cfg$dnq_frac), cfg$skew, cfg$n_rep, cfg$M,
+              cfg$rho, mean(cfg$dnq_frac), mean(cfg$skew), cfg$n_rep, cfg$M,
               cfg$iters_all))
   cat(sprintf("  reliable if |bias| <= %.2f AND coverage >= %.2f AND ND < 50%%\n\n",
               cfg$bias_tol, cfg$coverage_tol))
@@ -244,6 +272,13 @@ print.preflight <- function(x, ...) {
   if (length(hi_nd) > 0) {
     cat(sprintf("  At/above 50%% ND (median not estimable): %s\n",
                 paste(hi_nd, collapse = ", ")))
+  }
+  # Skew is the main cause of mean-imputation bias; point to the skew-robust model.
+  if (mean(abs(cfg$skew)) >= 0.3 && !identical(cfg$imp_model, "copula")) {
+    cat(sprintf(paste0("  Right-skew detected (sinh-arcsinh delta ~ %.2f): the mean",
+                       " may be biased low.\n  Consider imp_model = \"copula\"",
+                       " (skew-robust), or report the median.\n"),
+                mean(cfg$skew)))
   }
   invisible(x)
 }
