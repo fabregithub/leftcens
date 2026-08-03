@@ -1,0 +1,3 @@
+[15:07:33] Copula capstone starting (hybrid MI: plug-in point + drawn variance)
+[15:07:33] config=full  scenarios=72  n_rep=500  M=50  iters=30
+[15:07:33] tasks=36000  workers=22  chunks=100  (2*M=100 copula imputations per rep)
