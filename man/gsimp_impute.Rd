@@ -11,7 +11,8 @@ gsimp_impute(
   initial = "bounds",
   imp_model = "tobit",
   n_cores = 1,
-  verbose = FALSE
+  verbose = FALSE,
+  margin_draw = TRUE
 )
 }
 \arguments{
@@ -37,8 +38,12 @@ subject to the selection bias of fitting on the (upper-truncated) detected
 values, and it keeps imputation reliable to much heavier censoring (at the
 cost of being several times slower). The observed-only alternatives are
 \code{"ridge"} (base-R ridge regression, fastest and always solvable), \code{"lm"},
-and \code{"glmnet"} (elastic net, requires 'glmnet'). A custom
-\verb{function(yo, Xo, Xm)} returning \code{list(mean, sd)} is also accepted. The
+and \code{"glmnet"} (elastic net, requires 'glmnet'). \code{"copula"} is a
+skew-robust variant: it fits a flexible (sinh-arcsinh) margin per analyte,
+maps the data to latent-Gaussian scores, runs the \code{"tobit"} sampler there,
+and back-transforms -- removing the downward mean bias \code{"tobit"} shows under
+strongly right-skewed margins. A custom \verb{function(yo, Xo, Xm)} returning
+\code{list(mean, sd)} is also accepted. The
 \code{"tobit"} model reduces the predictor dimension by PCA when there are more
 analytes than samples, and falls back to \code{"ridge"} if the censored fit
 cannot be formed.}
@@ -47,6 +52,14 @@ cannot be formed.}
 execution is implemented (a value \verb{> 1} emits a message and runs serially).}
 
 \item{verbose}{If \code{TRUE}, report progress per sweep.}
+
+\item{margin_draw}{Only used by \code{imp_model = "copula"}. When \code{TRUE} (default),
+each imputation draws the per-analyte margin parameters from their asymptotic
+posterior, so pooling M such imputations propagates margin/tail-estimation
+uncertainty into the multiple-imputation variance. Set \code{FALSE} to plug in the
+MLE margin, giving the near-unbiased \emph{point} imputation. Recommended MI
+workflow: the plug-in (\code{FALSE}) for the point estimate, drawn (\code{TRUE})
+imputations for the between-imputation variance.}
 }
 \value{
 A numeric matrix of the same dimensions as the input, with censored

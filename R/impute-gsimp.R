@@ -328,11 +328,22 @@ initialise_cells <- function(data, lo, hi, miss, initial) {
 #'   values, and it keeps imputation reliable to much heavier censoring (at the
 #'   cost of being several times slower). The observed-only alternatives are
 #'   `"ridge"` (base-R ridge regression, fastest and always solvable), `"lm"`,
-#'   and `"glmnet"` (elastic net, requires 'glmnet'). A custom
-#'   `function(yo, Xo, Xm)` returning `list(mean, sd)` is also accepted. The
+#'   and `"glmnet"` (elastic net, requires 'glmnet'). `"copula"` is a
+#'   skew-robust variant: it fits a flexible (sinh-arcsinh) margin per analyte,
+#'   maps the data to latent-Gaussian scores, runs the `"tobit"` sampler there,
+#'   and back-transforms -- removing the downward mean bias `"tobit"` shows under
+#'   strongly right-skewed margins. A custom `function(yo, Xo, Xm)` returning
+#'   `list(mean, sd)` is also accepted. The
 #'   `"tobit"` model reduces the predictor dimension by PCA when there are more
 #'   analytes than samples, and falls back to `"ridge"` if the censored fit
 #'   cannot be formed.
+#' @param margin_draw Only used by `imp_model = "copula"`. When `TRUE` (default),
+#'   each imputation draws the per-analyte margin parameters from their asymptotic
+#'   posterior, so pooling M such imputations propagates margin/tail-estimation
+#'   uncertainty into the multiple-imputation variance. Set `FALSE` to plug in the
+#'   MLE margin, giving the near-unbiased *point* imputation. Recommended MI
+#'   workflow: the plug-in (`FALSE`) for the point estimate, drawn (`TRUE`)
+#'   imputations for the between-imputation variance.
 #' @param n_cores Reserved for future parallel sweeps; currently only serial
 #'   execution is implemented (a value `> 1` emits a message and runs serially).
 #' @param verbose If `TRUE`, report progress per sweep.
@@ -356,13 +367,21 @@ initialise_cells <- function(data, lo, hi, miss, initial) {
 #' @export
 gsimp_impute <- function(x, iters_all = 10, iters_each = 1,
                          initial = "bounds", imp_model = "tobit",
-                         n_cores = 1, verbose = FALSE) {
+                         n_cores = 1, verbose = FALSE, margin_draw = TRUE) {
   if (!is_cens_bounds(x)) {
     stop("`x` must be a <cens_bounds> object; see `build_bounds()`.",
          call. = FALSE)
   }
   if (n_cores > 1) {
     message("n_cores > 1 is not yet supported; running serially.")
+  }
+
+  # Gaussian-copula path: transform to latent-Gaussian margins, impute there with
+  # tobit, back-transform. See R/impute-copula.R.
+  if (identical(imp_model, "copula")) {
+    return(copula_impute(x, iters_all = iters_all, iters_each = iters_each,
+                         initial = initial, verbose = verbose,
+                         margin_draw = margin_draw))
   }
 
   data <- x$data_wide

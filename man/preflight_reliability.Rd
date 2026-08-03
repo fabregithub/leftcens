@@ -37,7 +37,11 @@ vector.}
 \item{dnq_frac}{Detected-not-quantified fraction (the middle tier), scalar or
 length-\code{p}. Default \code{0} (pure left-censoring).}
 
-\item{skew}{sinh-arcsinh skewness of the marginals (\code{0} = log-normal).}
+\item{skew}{sinh-arcsinh skewness of the marginals (\code{0} = log-normal); scalar
+or length-\code{p} for per-analyte skewness. \code{\link[=preflight_from_data]{preflight_from_data()}} estimates
+this from your data. Right-skew is the main driver of mean-imputation bias, so
+a non-zero value here is what makes the reported reliability honest for
+skewed data.}
 
 \item{mu, sd}{Log-scale mean and standard deviation of the analytes; scalar or
 length-\code{p}. Defaults span a modest range of means at unit sd.}

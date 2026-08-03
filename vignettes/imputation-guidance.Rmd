@@ -67,6 +67,21 @@ the censoring fraction:**
   imputing into. With larger `n` the intervals also tighten around that bias, so
   coverage can fall *below* nominal (bias, not variance, then dominates).
 
+A skew sweep pins down how much skew the mean tolerates before it crosses the
+|bias| <= 0.10 line --- and it shrinks as non-detects rise (the bias scales with
+skewness *times* the non-detect fraction, `bias ~ 0.85 * skew * ND`):
+
+| Non-detect fraction | Max tolerable log-scale skewness (mean still within 0.10) |
+|---|---|
+| 15% | ~1.1 |
+| 25% | ~0.8 |
+| 35% | ~0.55 |
+| 45% | ~0.45 |
+
+Rule of thumb: the mean is dependable while (sample log-scale skewness) x (ND
+fraction) is below ~0.18; above that, report the median instead. The median's
+bias stayed at machine zero across the entire sweep.
+
 The observed-only models (`ridge`, `lm`, `glmnet`) only reach ~25% ND before
 their intervals stop covering even in the easy (symmetric) case --- which is why
 `tobit` is the default.
@@ -153,21 +168,31 @@ exponentiate for original units.
 ### A pre-flight reliability check
 
 For a fuller assessment tailored to *your* design, `preflight_from_data()`
-reads the non-detect fractions from your `cens_data`, estimates the correlation
-and marginals, then simulates many datasets like yours, imputes them, and
-reports the bias and 95% coverage you can expect --- flagging which analytes are
-reliably imputable. (It is a Monte Carlo procedure, so it takes a little time;
+reads the non-detect fractions from your `cens_data`, estimates the correlation,
+marginals, and **marginal skewness** (the last by an interval-censored fit, so a
+symmetric imputation cannot hide it), then simulates many datasets like yours,
+imputes them, and reports the bias and 95% coverage you can expect --- flagging
+which analytes are reliably imputable. Because it feeds the estimated skew into
+the simulation, it will surface the skew-induced mean bias rather than assume
+log-normality; when it detects material right-skew it points you to
+`imp_model = "copula"`. (It is a Monte Carlo procedure, so it takes a little time;
 increase `n_rep` / `M` for more precise estimates.)
 
 ```{r preflight, eval = FALSE}
 preflight_from_data(analytes, n_rep = 30, M = 20)
 #> <preflight> reliability for 3 analytes, n = 80 (tobit model)
+#>   design: rho=0.49, dnq=0.00, skew=0.69 | 30 reps, M=20, iters=10
 #>   reliable if |bias| <= 0.10 AND coverage >= 0.90 AND ND < 50%
 #>
 #>  analyte nd_frac mean_bias median_bias  rmse coverage reliable
-#>        1    0.30    ...         ...      ...     ...      TRUE
+#>        1    0.30    ...         ...      ...     ...      ...
 #>        ...
-#> Verdict: 3 of 3 analytes reliably imputable.
+#> Verdict: ... of 3 analytes reliably imputable.
+#>   Right-skew detected (sinh-arcsinh delta ~ 0.69): the mean may be biased low.
+#>   Consider imp_model = "copula" (skew-robust), or report the median.
+
+# re-run with the skew-robust model if skew was flagged:
+preflight_from_data(analytes, imp_model = "copula", n_rep = 30, M = 20)
 ```
 
 Or describe a design directly with `preflight_reliability(n, nd_frac, ...)`
@@ -180,10 +205,10 @@ Monte Carlo study behind these recommendations lives in the source
 - **> 50% ND:** below the target line; the median itself is censored and point
   imputation is no longer dependable. Prefer interval-censored *descriptive*
   summaries (`desc_np()`, `desc_sp()`) over imputed point values.
-- **Right-skewed margins:** the log-scale *mean* can be biased downward once
-  censoring is non-trivial (~35% ND and up), even though the median stays exact.
-  Lead with the median (or interval-censored descriptive summaries), and use a
-  pre-flight run to gauge the mean's bias for your own design.
+- **Right-skewed margins:** the log-scale *mean* is biased downward once
+  (skewness x ND) exceeds ~0.18 (see the threshold table above), even though the
+  median stays exact. Lead with the median (or interval-censored descriptive
+  summaries), and use a pre-flight run to gauge the mean's bias for your design.
 - **Larger `n` does not fix a biased mean:** when the mean is biased (e.g. under
   skew), more samples tighten the intervals around the wrong center and *lower*
   coverage. Good coverage at small `n` is not by itself evidence of low bias.
