@@ -1,6 +1,6 @@
 Package: leftcens
 Title: Descriptive Statistics and Imputation for Left- and Interval-Censored Data
-Version: 0.7.0
+Version: 0.8.0
 Authors@R:
     person(given = "Shoji F.",
            family = "Nakayama",
@@ -19,7 +19,6 @@ URL: https://github.com/fabregithub/leftcens, https://fabregithub.github.io/left
 BugReports: https://github.com/fabregithub/leftcens/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 8.0.0
 Imports:
     generics,
     icenReg,
@@ -35,3 +34,4 @@ VignetteBuilder: knitr
 Depends: 
     R (>= 3.5)
 LazyData: true
+Config/roxygen2/version: 8.1.0

@@ -321,22 +321,22 @@ initialise_cells <- function(data, lo, hi, miss, initial) {
 #'   from each analyte's observed mean/sd, truncated to the cell interval) or
 #'   `"qrilc"` (quantile-regression left-censored imputation, requires the
 #'   'imputeLCMD' package, then clamped into bounds).
-#' @param imp_model Conditional model. `"tobit"` (default) is an
-#'   interval-censored Gaussian regression via [survival::survreg()], fit on
-#'   observed *and* censored rows; unlike the observed-only models it is not
-#'   subject to the selection bias of fitting on the (upper-truncated) detected
-#'   values, and it keeps imputation reliable to much heavier censoring (at the
-#'   cost of being several times slower). The observed-only alternatives are
-#'   `"ridge"` (base-R ridge regression, fastest and always solvable), `"lm"`,
-#'   and `"glmnet"` (elastic net, requires 'glmnet'). `"copula"` is a
-#'   skew-robust variant: it fits a flexible (sinh-arcsinh) margin per analyte,
-#'   maps the data to latent-Gaussian scores, runs the `"tobit"` sampler there,
-#'   and back-transforms -- removing the downward mean bias `"tobit"` shows under
-#'   strongly right-skewed margins. A custom `function(yo, Xo, Xm)` returning
-#'   `list(mean, sd)` is also accepted. The
-#'   `"tobit"` model reduces the predictor dimension by PCA when there are more
-#'   analytes than samples, and falls back to `"ridge"` if the censored fit
-#'   cannot be formed.
+#' @param imp_model Conditional model. `"copula"` (default) is the skew-robust
+#'   choice: it fits a flexible (sinh-arcsinh) margin per analyte, maps the data
+#'   to latent-Gaussian scores, runs an interval-censored Gaussian regression
+#'   there, and back-transforms -- keeping the mean near-unbiased under
+#'   right-skewed margins while matching `"tobit"` on log-normal data. It is a
+#'   *proper* multiple-imputation engine (see `margin_draw`), and the slowest
+#'   option. `"tobit"` is an interval-censored Gaussian regression via
+#'   [survival::survreg()] fit on observed *and* censored rows; fast-ish and
+#'   reliable *when the margins are log-normal*, but biased under skew -- use it
+#'   for known-symmetric data or very large/wide problems. The observed-only
+#'   alternatives are `"ridge"` (base-R ridge regression, fastest and always
+#'   solvable), `"lm"`, and `"glmnet"` (elastic net, requires 'glmnet'). A custom
+#'   `function(yo, Xo, Xm)` returning `list(mean, sd)` is also accepted. `"tobit"`
+#'   (and the latent step of `"copula"`) reduces the predictor dimension by PCA
+#'   when there are more analytes than samples, and falls back to `"ridge"` if the
+#'   censored fit cannot be formed.
 #' @param margin_draw Only used by `imp_model = "copula"`. When `TRUE` (default),
 #'   each imputation draws the per-analyte margin parameters from their asymptotic
 #'   posterior, so pooling M such imputations propagates margin/tail-estimation
@@ -366,7 +366,7 @@ initialise_cells <- function(data, lo, hi, miss, initial) {
 #' anyNA(filled)
 #' @export
 gsimp_impute <- function(x, iters_all = 10, iters_each = 1,
-                         initial = "bounds", imp_model = "tobit",
+                         initial = "bounds", imp_model = "copula",
                          n_cores = 1, verbose = FALSE, margin_draw = TRUE) {
   if (!is_cens_bounds(x)) {
     stop("`x` must be a <cens_bounds> object; see `build_bounds()`.",

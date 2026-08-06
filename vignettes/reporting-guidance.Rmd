@@ -118,9 +118,9 @@ disclose it. State:
 - **what** was imputed (which analytes/cells) and **why** (e.g. to fit a model
   that cannot accept intervals);
 - the **method** --- a Gibbs sampler drawing each censored value from a truncated
-  distribution within its interval, using the censored (`"tobit"`) conditional
-  model --- and the settings (`imp_model`, `iters_all`, and, for multiple
-  imputation, `M`);
+  distribution within its interval, using the censored conditional model (the
+  default skew-robust `"copula"`, or `"tobit"`) --- and the settings
+  (`imp_model`, `iters_all`, and, for multiple imputation, `M`);
 - that multiple imputations were **pooled by Rubin's rules** (if you did so), and
   report the pooled estimate *with its multiple-imputation uncertainty*, not a
   single completed data set as if it were measured;

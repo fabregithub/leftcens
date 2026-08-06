@@ -136,7 +136,7 @@ value from within its interval. Pass the same list to `build_bounds()` and
 
 ```{r impute}
 bounds <- build_bounds(cl)
-filled_log <- gsimp_impute(bounds)          # default censored ("tobit") model
+filled_log <- gsimp_impute(bounds)          # default skew-robust ("copula") model
 
 # results are on the log scale; back-transform to original units
 filled <- round(exp(filled_log), 2)

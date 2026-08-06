@@ -20,6 +20,7 @@ S3method(print,cens_np_fit)
 S3method(print,cens_np_fits)
 S3method(print,cens_sp_fit)
 S3method(print,cens_sp_fits)
+S3method(print,gsimp_mi)
 S3method(print,preflight)
 S3method(quantile,cens_np_fit)
 S3method(quantile,cens_np_fits)
@@ -36,6 +37,7 @@ export(desc_np)
 export(desc_sp)
 export(glance)
 export(gsimp_impute)
+export(gsimp_mi)
 export(is_cens_bounds)
 export(is_cens_data)
 export(is_cens_list)
@@ -43,8 +45,12 @@ export(preflight_from_data)
 export(preflight_reliability)
 export(rnorm_trunc)
 export(tidy)
-importFrom(generics,glance)
-importFrom(generics,tidy)
-importFrom(graphics,legend)
-importFrom(graphics,lines)
+importFrom(generics,
+  glance,
+  tidy
+)
+importFrom(graphics,
+  legend,
+  lines
+)
 importFrom(stats,quantile)

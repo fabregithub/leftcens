@@ -1,6 +1,6 @@
 # Gaussian-copula ("normal-scores") imputation for interval-censored data.
 #
-# S1 in validation/PHASE3_SKEW_PLAN.md. Motivation: the default tobit conditional
+# S1 in validation/PHASE3_SKEW_PLAN.md. Motivation: the tobit conditional
 # assumes a Gaussian margin, so under right-skew it draws non-detects from a
 # too-heavy left tail and biases the mean downward (D1 / G2 findings). This model
 # instead treats the data as a Gaussian COPULA with flexible skewed margins:
@@ -46,10 +46,17 @@ z_to_x <- function(z, mu, sigma, eps) mu + sigma * sinh(asinh(z) + eps)
 #' @keywords internal
 #' @noRd
 fit_shash_margin <- function(xo, lo_c, hi_c) {
-  fallback <- list(mu = mean(xo), sigma = stats::sd(xo), eps = 0,
-                   par = NULL, V = NULL)
-  if (!is.finite(fallback$sigma) || fallback$sigma <= 0) fallback$sigma <- 1
-  fallback$par <- c(fallback$mu, log(fallback$sigma), 0)
+  # Robust location/scale even with 0-1 observed values (an entirely censored
+  # analyte): centre on the finite censoring bounds when there is nothing observed.
+  mu0 <- if (length(xo) >= 1L) mean(xo) else NA_real_
+  if (!is.finite(mu0)) {
+    fin <- c(lo_c[is.finite(lo_c)], hi_c[is.finite(hi_c)])
+    mu0 <- if (length(fin)) mean(fin) else 0
+  }
+  sd0 <- if (length(xo) >= 2L) stats::sd(xo) else NA_real_
+  if (!is.finite(sd0) || sd0 <= 0) sd0 <- 1
+  fallback <- list(mu = mu0, sigma = sd0, eps = 0,
+                   par = c(mu0, log(sd0), 0), V = NULL)
   if (length(xo) < 5L) return(fallback)
 
   nll <- function(par) {

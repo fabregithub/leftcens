@@ -1,3 +1,26 @@
+# leftcens 0.8.0
+
+* **`imp_model = "copula"` is now the default** for `gsimp_impute()`,
+  `gsimp_mi()`, and the `preflight_*()` functions (previously `"tobit"`). Real
+  measurement data are often more skewed than log-normal, and the shape is usually
+  undiagnosable under censoring; the copula is near-unbiased across skew and
+  matches `"tobit"` on log-normal data, so it is the safer default. Set
+  `imp_model = "tobit"` (or `"ridge"`) to restore the previous, faster behaviour
+  for known-log-normal or very large/wide problems.
+* New `gsimp_mi()`: multiple imputation with Rubin's-rules pooling of the
+  per-analyte means, reporting the fraction of missing information (FMI). Draws
+  imputations in parallel (`n_cores`), uses the copula hybrid automatically
+  (plug-in point estimate + drawn-margin variance), can choose the number of
+  imputations adaptively (`adaptive = TRUE`), and returns the completed datasets
+  (`return_imputations = TRUE`) for a downstream analysis.
+* Guidance vignette and README reframed around the copula default and a
+  multiple-imputation workflow (a single imputation under-covers; choose the
+  number of imputations by FMI --- about 30 for the copula, or adaptive). The
+  README states the package's scope: descriptive statistics and marginal-
+  distribution reconstruction, not association modelling with a censored variable.
+* `imp_model = "copula"` now handles an entirely-censored analyte gracefully
+  (with no observed values the margin falls back to the censoring bounds).
+
 # leftcens 0.7.0
 
 * New skew-robust imputation model `imp_model = "copula"` for `gsimp_impute()`.

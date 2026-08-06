@@ -42,6 +42,25 @@ modules:
 Classic single-limit (Helsel-style) left censoring is treated as a
 degenerate two-tier case of the same model, not a separate mode.
 
+## Scope — what `leftcens` is (and isn’t) for
+
+`leftcens` is for **descriptive statistics and reconstructing the
+marginal distribution** of censored measurements: per-analyte summaries,
+quantiles, and imputed values (with Rubin’s-rules uncertainty via
+`gsimp_mi()`) for reporting.
+
+It is **not** a tool for **regression or association modelling** with a
+censored variable. If a censored analyte enters a model as a predictor
+(e.g. an exposure) or an outcome, imputing it here first and plugging it
+in can **bias the estimated association** — valid inference needs the
+censored value imputed *congenially with the analysis model*
+(conditioning on the outcome), which a stand-alone
+distribution-reconstruction step cannot do. For that, impute the
+censored variable **inside** the analysis: a joint model that conditions
+on the outcome (`brms` with `mi()` + `cens()`), or a censored imputation
+method within your own multiple- imputation loop. See the *“How much can
+you trust the imputation?”* vignette.
+
 ## Installation
 
 leftcens is not yet on CRAN. Install the development version from
@@ -72,7 +91,7 @@ quantile(desc_np(cl), probs = c(0.5, 0.9))    # per-analyte quantiles (NA below 
 #> Cu  6.6005 19.694
 #> Zn 10.8895 58.264
 
-filled <- gsimp_impute(build_bounds(cl))      # impute the censored cells (tobit model)
+filled <- gsimp_impute(build_bounds(cl))      # impute the censored cells (copula: skew-robust default)
 ```
 
 Descriptive summaries are table-ready via `as.data.frame()` (`gt`,

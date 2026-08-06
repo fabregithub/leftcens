@@ -99,7 +99,7 @@ pf_mi_coverage <- function(bounds, z, M, iters_all, imp_model, seed) {
 #' @param n_rep Number of simulated datasets.
 #' @param M Number of imputations per dataset for the coverage estimate.
 #' @param iters_all Gibbs sweeps per imputation (see [gsimp_impute()]).
-#' @param imp_model Conditional model (see [gsimp_impute()]); default `"tobit"`.
+#' @param imp_model Conditional model (see [gsimp_impute()]); default `"copula"`.
 #' @param bias_tol,coverage_tol Reliability thresholds: maximum |mean bias| and
 #'   minimum coverage.
 #' @param seed Optional integer for reproducibility.
@@ -119,7 +119,7 @@ pf_mi_coverage <- function(bounds, z, M, iters_all, imp_model, seed) {
 preflight_reliability <- function(n, nd_frac, p = NULL, rho = 0.5,
                                   dnq_frac = 0, skew = 0, mu = NULL, sd = 1,
                                   n_rep = 30, M = 20, iters_all = 10,
-                                  imp_model = "tobit",
+                                  imp_model = "copula",
                                   bias_tol = 0.10, coverage_tol = 0.90,
                                   seed = NULL) {
   if (is.null(p)) p <- length(nd_frac)
@@ -216,7 +216,7 @@ preflight_reliability <- function(n, nd_frac, p = NULL, rho = 0.5,
 #' preflight_from_data(list(a = a, b = b), n_rep = 10, M = 5)
 #' }
 #' @export
-preflight_from_data <- function(x, imp_model = "tobit", iters_all = 10, ...) {
+preflight_from_data <- function(x, imp_model = "copula", iters_all = 10, ...) {
   cols <- as_cens_data_list(x)
   bounds <- build_bounds(cols)
   filled <- gsimp_impute(bounds, iters_all = iters_all, imp_model = imp_model)

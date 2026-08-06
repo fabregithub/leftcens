@@ -416,3 +416,44 @@ the residual high-skew / high-ND corner.
 - Manski bound width for the mean vs ND — is a reported interval useful or too wide?
 - Compatibility/convergence of FCS in latent space when margins are *estimated*
   (plug-in `F̂_j` feedback across sweeps).
+
+## 7. Definitive results (capstone + m-stability)
+
+### Copula capstone [DONE 2026-08-05]
+`run_copula_capstone.R`, hybrid MI, N_REP=500 M=50, 43.6 h, full grid, paired
+with the tobit D1 (`d1_tobit_latest.rds`). **Verdict: copula is a safe robust
+default.**
+- **No regression on log-normal** (skew 0, ND < 50%): copula 24/24 pass; mean
+  |bias| 0.002 vs tobit 0.0007; RMSE 0.018 vs 0.012; coverage 0.997 vs 1.00 — a
+  negligible "insurance premium".
+- **Decisive under skew** (skew 0.75, ND < 50%): copula |bias| 0.004 / cov 1.00 /
+  24/24 vs tobit 0.14 / 0.81 / 12/24.
+- **Overall in-range: copula 48/48 vs tobit 36/48.** MCSE tiny (bias median 0.001).
+- Only exception: 55% ND (ABOVE the target line) on log-normal, tobit edges copula
+  — median-first territory, irrelevant to the target.
+
+### E8 — how many imputations (m-stability, FMI, n) [DONE 2026-08-05]
+`effect_of_m_stability.R` + `gsimp_mi()`; reps=100, n ∈ {75..4800}, copula vs tobit.
+- **The n-dependence hypothesis was NOT confirmed.** FMI and adaptive-m are
+  ~**flat in n** (a weak model-uncertainty dip under skew at large n only). Required
+  m is set by **FMI (≈ censoring fraction + engine properness)**, not sample size.
+- **Engine properness is the driver:** copula is *proper* (draws margin params) →
+  honest FMI ~0.40 at 35% ND, needs **m ~ 25–30**; tobit is *improper* (fixed
+  conditional params) → FMI ~0.08 (under-propagates), needs m ~ 10–15. tobit's
+  cheaper m is a symptom of improperness, not an advantage.
+- **tobit under skew: coverage → 0 at m=1 AND m=50** (n ≥ 600) — MI cannot fix a
+  biased engine; only a correct one (copula) can.
+- **Single imputation under-covers** (copula log-normal n=75: 0.94 → 0.98 at m=50).
+- **Reconciliation of the field observation** (MICE m≈8–10 at N>50k): that was
+  low-FMI data (well-predicted missingness), an FMI effect. n matters only through
+  FMI's model-uncertainty component.
+- **Guidance revision:** copula wants **m ≈ 30** (or `gsimp_mi(adaptive = TRUE)`),
+  vs the old tobit-calibrated M=20; the adaptive helper targets FMI directly and is
+  right for any n / censoring / skew.
+
+### Default-engine decision
+Capstone (accuracy + robustness) + E8 (proper, honest, calibrated engine; modest
+m cost) **support making `copula` the default**, with `tobit`/`ridge` as the fast
+special-case options for known-log-normal or very wide/large problems. To scope as
+its own branch/PR: defaults in `gsimp_impute`/`preflight_*`; vignette reframed
+(copula-first); NEWS + version; update the m-guidance to ~30 / adaptive.

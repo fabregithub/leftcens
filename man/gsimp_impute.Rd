@@ -9,7 +9,7 @@ gsimp_impute(
   iters_all = 10,
   iters_each = 1,
   initial = "bounds",
-  imp_model = "tobit",
+  imp_model = "copula",
   n_cores = 1,
   verbose = FALSE,
   margin_draw = TRUE
@@ -31,22 +31,22 @@ from each analyte's observed mean/sd, truncated to the cell interval) or
 \code{"qrilc"} (quantile-regression left-censored imputation, requires the
 'imputeLCMD' package, then clamped into bounds).}
 
-\item{imp_model}{Conditional model. \code{"tobit"} (default) is an
-interval-censored Gaussian regression via \code{\link[survival:survreg]{survival::survreg()}}, fit on
-observed \emph{and} censored rows; unlike the observed-only models it is not
-subject to the selection bias of fitting on the (upper-truncated) detected
-values, and it keeps imputation reliable to much heavier censoring (at the
-cost of being several times slower). The observed-only alternatives are
-\code{"ridge"} (base-R ridge regression, fastest and always solvable), \code{"lm"},
-and \code{"glmnet"} (elastic net, requires 'glmnet'). \code{"copula"} is a
-skew-robust variant: it fits a flexible (sinh-arcsinh) margin per analyte,
-maps the data to latent-Gaussian scores, runs the \code{"tobit"} sampler there,
-and back-transforms -- removing the downward mean bias \code{"tobit"} shows under
-strongly right-skewed margins. A custom \verb{function(yo, Xo, Xm)} returning
-\code{list(mean, sd)} is also accepted. The
-\code{"tobit"} model reduces the predictor dimension by PCA when there are more
-analytes than samples, and falls back to \code{"ridge"} if the censored fit
-cannot be formed.}
+\item{imp_model}{Conditional model. \code{"copula"} (default) is the skew-robust
+choice: it fits a flexible (sinh-arcsinh) margin per analyte, maps the data
+to latent-Gaussian scores, runs an interval-censored Gaussian regression
+there, and back-transforms -- keeping the mean near-unbiased under
+right-skewed margins while matching \code{"tobit"} on log-normal data. It is a
+\emph{proper} multiple-imputation engine (see \code{margin_draw}), and the slowest
+option. \code{"tobit"} is an interval-censored Gaussian regression via
+\code{\link[survival:survreg]{survival::survreg()}} fit on observed \emph{and} censored rows; fast-ish and
+reliable \emph{when the margins are log-normal}, but biased under skew -- use it
+for known-symmetric data or very large/wide problems. The observed-only
+alternatives are \code{"ridge"} (base-R ridge regression, fastest and always
+solvable), \code{"lm"}, and \code{"glmnet"} (elastic net, requires 'glmnet'). A custom
+\verb{function(yo, Xo, Xm)} returning \code{list(mean, sd)} is also accepted. \code{"tobit"}
+(and the latent step of \code{"copula"}) reduces the predictor dimension by PCA
+when there are more analytes than samples, and falls back to \code{"ridge"} if the
+censored fit cannot be formed.}
 
 \item{n_cores}{Reserved for future parallel sweeps; currently only serial
 execution is implemented (a value \verb{> 1} emits a message and runs serially).}

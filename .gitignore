@@ -17,3 +17,4 @@ NOTES.md
 
 # Rendered validation report
 validation/*.html
+validation/logs/

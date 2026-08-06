@@ -16,7 +16,7 @@ preflight_reliability(
   n_rep = 30,
   M = 20,
   iters_all = 10,
-  imp_model = "tobit",
+  imp_model = "copula",
   bias_tol = 0.1,
   coverage_tol = 0.9,
   seed = NULL
@@ -52,7 +52,7 @@ length-\code{p}. Defaults span a modest range of means at unit sd.}
 
 \item{iters_all}{Gibbs sweeps per imputation (see \code{\link[=gsimp_impute]{gsimp_impute()}}).}
 
-\item{imp_model}{Conditional model (see \code{\link[=gsimp_impute]{gsimp_impute()}}); default \code{"tobit"}.}
+\item{imp_model}{Conditional model (see \code{\link[=gsimp_impute]{gsimp_impute()}}); default \code{"copula"}.}
 
 \item{bias_tol, coverage_tol}{Reliability thresholds: maximum |mean bias| and
 minimum coverage.}

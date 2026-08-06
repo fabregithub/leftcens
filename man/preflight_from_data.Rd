@@ -4,7 +4,7 @@
 \alias{preflight_from_data}
 \title{Pre-flight reliability check derived from your own data}
 \usage{
-preflight_from_data(x, imp_model = "tobit", iters_all = 10, ...)
+preflight_from_data(x, imp_model = "copula", iters_all = 10, ...)
 }
 \arguments{
 \item{x}{A \code{cens_data} object or a list of them (one per analyte), as passed

@@ -17,29 +17,33 @@ library(leftcens)
 ```
 
 This vignette gives practical guidance for `gsimp_impute()`: which model to use,
-how to set the knobs, how much censoring you can impute through, and how to
-sanity-check your own data. It summarises a Monte Carlo validation study that
+how many imputations to pool, how much censoring you can impute through, and how
+to sanity-check your own data. It summarises a Monte Carlo validation study that
 ships with the package source (in `validation/`); the numbers below come from
-that study --- now confirmed by a definitive high-replication run (500
-replications, `M = 50`) --- see `validation/RESEARCH_PLAN.md` for the full design.
+that study --- confirmed by two definitive high-replication runs (500
+replications, `M = 50`) --- see `validation/PHASE3_SKEW_PLAN.md` for the design.
 
-## The short version
+## The short version (best practice)
 
-- **Use the default model (`imp_model = "tobit"`).** It fits an
-  interval-censored regression on observed *and* censored rows, so it is not
-  fooled by the fact that censored values are the small ones.
-- **The median is reliably recovered up to ~50% non-detects** --- whether the
-  data are log-normal or right-skewed. It is the estimand to lead with: below 50%
-  ND the median sits at or above the detection limit, so it is directly
-  estimable.
-- **The log-scale *mean* is equally reliable when the data are roughly
-  log-normal**, but under strong right-skew it is biased downward once censoring
-  passes ~35% ND (see below) --- report the median, and check with a pre-flight
-  run when skew is visible.
-- **Defaults are ample:** `iters_all = 10` sweeps and `M = 20` imputations.
-- **Co-impute a moderate set of analytes** (roughly 10-50) for best precision,
-  though the method is valid well outside that range.
-- **Work on the log scale** (`log_transform = TRUE`, the default).
+- **Lead with the median.** Below 50% non-detects the median sits at or above the
+  detection limit, so it is recovered exactly whatever the distribution shape.
+  Report it as your primary summary; treat analytes at >= 50% ND as out of range.
+- **Keep the default skew-robust engine (`imp_model = "copula"`) for the mean.**
+  Real measurement data are often more skewed than log-normal and you usually
+  cannot diagnose the shape under censoring. The copula fits a flexible margin per
+  analyte and keeps the mean near-unbiased across skew; on genuinely log-normal
+  data it matches `tobit`. Switch to `tobit` (assumes log-normality) or `ridge`
+  (fastest) only for known-log-normal data or very large/wide problems where speed
+  dominates.
+- **Always use *multiple* imputation, never a single completed dataset.** One
+  imputation treats the filled values as known and under-covers. Generate several
+  and pool with Rubin's rules --- `gsimp_mi()` does this and reports the fraction
+  of missing information (FMI).
+- **Choose the number of imputations by FMI, not sample size.** Let
+  `gsimp_mi(adaptive = TRUE)` pick it, or use **`m` ~ 30 for the copula** (~20 for
+  tobit); raise it toward `100 * FMI` under heavy censoring.
+- **The other knobs are cheap:** `iters_all = 10` sweeps; co-impute a moderate set
+  of related analytes (roughly 10-50); work on the log scale (the default).
 
 ## The reliability target: ND < 50%
 
@@ -58,43 +62,45 @@ the censoring fraction:**
   skewed.** Below 50% ND the median is at or above the limit, so it is observed
   rather than imputed; its bias was ~0 in every condition. This is the estimand
   to report.
-- **The log-scale mean is reliable only when the data are approximately
-  log-normal.** With symmetric margins the default keeps the mean unbiased and
-  its intervals calibrated all the way to ~55% ND. But under substantial
-  right-skew the mean acquires a downward bias that grows with censoring --- small
-  at 15% ND, but exceeding the |bias| <= 0.10 tolerance by ~35% ND --- because the
-  linear-Gaussian conditional model underestimates the skewed lower tail it is
-  imputing into. With larger `n` the intervals also tighten around that bias, so
-  coverage can fall *below* nominal (bias, not variance, then dominates).
+- **For the mean, the margin's *shape* is what matters --- so use the right
+  engine.** With `tobit`, the mean is unbiased only when the data are roughly
+  log-normal; under substantial right-skew its linear-Gaussian conditional
+  underestimates the skewed lower tail, so the mean is biased downward once
+  censoring is non-trivial (and with larger `n` the intervals tighten around that
+  bias, *lowering* coverage). **`imp_model = "copula"` removes this** by fitting a
+  flexible margin per analyte: in the capstone it held `|bias| <= 0.01` and
+  near-nominal coverage across the whole skew range at ND < 50%, while matching
+  `tobit` on log-normal data.
 
-A skew sweep pins down how much skew the mean tolerates before it crosses the
-|bias| <= 0.10 line --- and it shrinks as non-detects rise (the bias scales with
-skewness *times* the non-detect fraction, `bias ~ 0.85 * skew * ND`):
+If you use `tobit`, a skew sweep pins down how much skew its mean tolerates before
+it crosses the |bias| <= 0.10 line --- and it shrinks as non-detects rise (the
+tobit bias scales as `~ 0.85 * skew * ND`):
 
-| Non-detect fraction | Max tolerable log-scale skewness (mean still within 0.10) |
+| Non-detect fraction | Max log-scale skewness for tobit (mean within 0.10) |
 |---|---|
 | 15% | ~1.1 |
 | 25% | ~0.8 |
 | 35% | ~0.55 |
 | 45% | ~0.45 |
 
-Rule of thumb: the mean is dependable while (sample log-scale skewness) x (ND
-fraction) is below ~0.18; above that, report the median instead. The median's
-bias stayed at machine zero across the entire sweep.
+Rule of thumb for `tobit`: its mean is dependable while (sample log-scale skewness)
+x (ND fraction) stays below ~0.18. Above that, switch to `imp_model = "copula"` (no
+such threshold) or report the median. The median's bias stayed at machine zero
+across the entire sweep for both engines.
 
-The observed-only models (`ridge`, `lm`, `glmnet`) only reach ~25% ND before
-their intervals stop covering even in the easy (symmetric) case --- which is why
-`tobit` is the default.
+The observed-only models (`ridge`, `lm`, `glmnet`) only reach ~25% ND before their
+intervals stop covering even in the easy (symmetric) case.
 
 ## What the validation established
 
-Across a range of conditions the default (`tobit`) recovered the median
-throughout ND < 50%, and the mean too when the margins were roughly log-normal;
-the observed-only models did neither. Summary of the drivers in `validation/`:
+Both engines recover the median throughout ND < 50%. For the mean, `tobit`
+succeeds only on roughly log-normal margins, whereas `copula` succeeds across
+skew; the observed-only models do neither. Summary of the drivers in
+`validation/`:
 
-| Question | Finding for `tobit` |
+| Question | Finding |
 |---|---|
-| Marginal skew (distribution shape) | **The axis that governs mean recovery.** Symmetric/log-normal: mean unbiased to ~55% ND. Strong right-skew: mean biased downward, failing the tolerance by ~35% ND. The median stays exact either way. |
+| Marginal skew (distribution shape) | **The axis that governs mean recovery.** `tobit`: mean unbiased to ~55% ND when symmetric, but biased downward under right-skew (fails by ~35% ND). `copula`: mean unbiased across skew (capstone \|bias\| <= 0.01 at ND < 50%, 48/48 vs tobit 36/48). Median stays exact for both. |
 | Correlation strength | Rescue holds even at zero correlation --- it comes from the per-analyte censored fit, not borrowed information. |
 | Number of analytes (`p`) | Holds from `p = 3` up to `p = 200` (`p/n = 2`, PCA regime). RMSE is lowest around `p = 12-50`. |
 | Non-linear dependence | Rescue holds; unmodelled non-linear dependence costs *precision* (RMSE), not validity. |
@@ -107,22 +113,60 @@ because the linear conditional model cannot exploit that dependence.
 
 ## Choosing the settings
 
-**`imp_model`.** Keep the default `"tobit"` unless you have a specific reason:
+**`imp_model`.** Keep the default `"copula"` unless you have a specific reason not to:
 
-- `"tobit"` --- interval-censored Gaussian; the reliable choice, several times
-  slower than ridge. Reduces predictors by PCA when analytes outnumber samples.
-- `"ridge"` --- fast, always solvable; use for a quick look or when you only
-  need a rough fill and know censoring is light (< ~25% ND).
+- `"copula"` --- **the default, robust choice.** Fits a flexible (sinh-arcsinh)
+  margin per analyte, imputes in a latent-Gaussian space, and back-transforms;
+  near-unbiased across skew and matches `tobit` on log-normal data. It is a
+  *proper* multiple-imputation engine (it draws the margin parameters), so its
+  intervals are honest --- at the cost of being the slowest option and wanting a
+  few more imputations.
+- `"tobit"` --- interval-censored Gaussian. Fast-ish and reliable *when the data
+  are log-normal*, but biased under skew. Use it when you know the margins are
+  symmetric, or for very large/wide problems.
+- `"ridge"` --- fastest, always solvable; a quick look, or light censoring
+  (< ~25% ND) on log-normal data.
 - `"glmnet"` --- elastic net, closest to the original GSimp; needs the package.
 - a custom `function(yo, Xo, Xm)` returning `list(mean, sd)`.
 
-**`iters_all` (Gibbs sweeps) and `M` (imputations).** `iters_all = 10` and
-`M = 20` are ample at target-edge censoring; heavier regimes may warrant more.
+**`iters_all` (Gibbs sweeps).** `iters_all = 10` is ample; point estimates settle
+by 3-5 sweeps.
 
 **How many analytes to co-impute.** Impute related analytes together --- the
 conditional model borrows strength across them. Precision was best in the
 `p = 12-50` range; very few analytes give a weak model, very many (`p >> n`)
 lose a little to the PCA reduction, but both remain valid.
+
+## Multiple imputation: pooling and how many
+
+A single imputed dataset treats the filled values as if they were observed, so its
+intervals are too narrow --- it under-covers. Generate several imputations and pool
+the per-analyte means with Rubin's rules; `gsimp_mi()` runs the loop, propagates
+the imputation uncertainty into the standard errors, and reports the **fraction of
+missing information (FMI)** that drives everything.
+
+```{r mi, eval = FALSE}
+fit <- gsimp_mi(bounds, imp_model = "copula", m = 30)
+fit$pooled     # per-analyte estimate, CI, and fmi
+```
+
+**How many imputations?** The required `m` is set by the FMI (roughly the
+non-detect fraction, adjusted for how well the observed data predict the missing
+values), **not by the sample size** --- a large `n` does not let you use fewer.
+Two practical routes:
+
+- Let it choose: `gsimp_mi(x, imp_model = "copula", adaptive = TRUE)` adds
+  imputations until the pooled interval stabilises.
+- Or fix it: **`m` ~ 30 for `"copula"`** (~20 for `"tobit"`), and raise it toward
+  `100 * FMI` when the reported FMI is high (heavy censoring). Because the copula
+  is a proper engine it reports an honest FMI (~0.4 at 35% ND) and so wants more
+  imputations than `tobit`, whose smaller `m` reflects that it under-propagates
+  uncertainty --- not that it needs less.
+
+**For a downstream analysis** (a regression, a Bayesian model): get the completed
+datasets with `gsimp_mi(x, return_imputations = TRUE)`, fit your model on **each**
+dataset, and pool the *analysis estimates* with Rubin's rules --- do not average
+the imputed datasets and analyse once.
 
 ## Sanity-check your own data
 
@@ -154,7 +198,7 @@ point imputation. Then impute the rest together:
 bounds <- build_bounds(analytes)
 bounds
 
-filled <- gsimp_impute(bounds, iters_all = 10)   # tobit by default
+filled <- gsimp_impute(bounds, imp_model = "copula", iters_all = 10)
 
 # every imputed value lands inside its interval, by construction
 m <- bounds$to_impute
@@ -162,7 +206,8 @@ all(filled[m] <= bounds$hi_mat[m] &
       (is.infinite(bounds$lo_mat[m]) | filled[m] >= bounds$lo_mat[m]))
 ```
 
-Imputed values are on the log scale (matching `log_transform = TRUE`);
+This is one completed dataset; for inference, pool several with `gsimp_mi()`
+(above). Imputed values are on the log scale (matching `log_transform = TRUE`);
 exponentiate for original units.
 
 ### A pre-flight reliability check
@@ -171,16 +216,17 @@ For a fuller assessment tailored to *your* design, `preflight_from_data()`
 reads the non-detect fractions from your `cens_data`, estimates the correlation,
 marginals, and **marginal skewness** (the last by an interval-censored fit, so a
 symmetric imputation cannot hide it), then simulates many datasets like yours,
-imputes them, and reports the bias and 95% coverage you can expect --- flagging
-which analytes are reliably imputable. Because it feeds the estimated skew into
-the simulation, it will surface the skew-induced mean bias rather than assume
-log-normality; when it detects material right-skew it points you to
-`imp_model = "copula"`. (It is a Monte Carlo procedure, so it takes a little time;
-increase `n_rep` / `M` for more precise estimates.)
+imputes them (with the default `"copula"`), and reports the bias and 95% coverage
+you can expect --- flagging which analytes are reliably imputable. Because it
+feeds the estimated skew into the simulation, it surfaces the skew-induced mean
+bias rather than assuming log-normality; if you switch to the faster
+`imp_model = "tobit"` and it detects material right-skew, it points you back to
+`"copula"`. (It is a Monte Carlo procedure, so it takes a little time; increase
+`n_rep` / `M` for more precise estimates.)
 
 ```{r preflight, eval = FALSE}
-preflight_from_data(analytes, n_rep = 30, M = 20)
-#> <preflight> reliability for 3 analytes, n = 80 (tobit model)
+preflight_from_data(analytes, n_rep = 30, M = 20)   # default: copula
+#> <preflight> reliability for 3 analytes, n = 80 (copula model)
 #>   design: rho=0.49, dnq=0.00, skew=0.69 | 30 reps, M=20, iters=10
 #>   reliable if |bias| <= 0.10 AND coverage >= 0.90 AND ND < 50%
 #>
@@ -188,11 +234,11 @@ preflight_from_data(analytes, n_rep = 30, M = 20)
 #>        1    0.30    ...         ...      ...     ...      ...
 #>        ...
 #> Verdict: ... of 3 analytes reliably imputable.
-#>   Right-skew detected (sinh-arcsinh delta ~ 0.69): the mean may be biased low.
-#>   Consider imp_model = "copula" (skew-robust), or report the median.
 
-# re-run with the skew-robust model if skew was flagged:
-preflight_from_data(analytes, imp_model = "copula", n_rep = 30, M = 20)
+# the faster tobit model would flag the skew the default is protecting you from:
+preflight_from_data(analytes, imp_model = "tobit", n_rep = 30, M = 20)
+#>   ... Right-skew detected (sinh-arcsinh delta ~ 0.69): the mean may be biased low.
+#>   Consider imp_model = "copula" (skew-robust), or report the median.
 ```
 
 Or describe a design directly with `preflight_reliability(n, nd_frac, ...)`
@@ -205,16 +251,27 @@ Monte Carlo study behind these recommendations lives in the source
 - **> 50% ND:** below the target line; the median itself is censored and point
   imputation is no longer dependable. Prefer interval-censored *descriptive*
   summaries (`desc_np()`, `desc_sp()`) over imputed point values.
-- **Right-skewed margins:** the log-scale *mean* is biased downward once
-  (skewness x ND) exceeds ~0.18 (see the threshold table above), even though the
-  median stays exact. Lead with the median (or interval-censored descriptive
-  summaries), and use a pre-flight run to gauge the mean's bias for your design.
-- **Larger `n` does not fix a biased mean:** when the mean is biased (e.g. under
-  skew), more samples tighten the intervals around the wrong center and *lower*
-  coverage. Good coverage at small `n` is not by itself evidence of low bias.
+- **Single imputation under-covers:** always pool several with `gsimp_mi()`. A
+  biased engine cannot be rescued by more imputations --- under skew, `tobit`'s
+  coverage stays wrong at any `m`; the fix is the right engine (`"copula"`), not a
+  larger `m`.
+- **Right-skewed margins with `tobit`:** its mean is biased downward once
+  (skewness x ND) exceeds ~0.18 (see the threshold table), even though the median
+  stays exact. Switch to `imp_model = "copula"`, or report the median.
+- **Larger `n` does not fix a biased mean:** when the mean is biased, more samples
+  tighten the intervals around the wrong center and *lower* coverage. Good coverage
+  at small `n` is not by itself evidence of low bias.
 - **Very small `n`:** with only a handful of observed values per analyte the
-  conditional fit is unstable regardless of model.
-- **Strongly non-linear dependence:** valid but less precise (wider intervals);
-  a non-linear censored model is a planned extension.
+  conditional fit (and the copula's margin fit) is unstable regardless of model.
+- **Strongly non-linear dependence at heavy censoring:** the copula's coverage
+  erodes a little (its latent conditional is linear); bias stays low. A non-linear
+  censored conditional was tried and did not help --- see `validation/`.
+- **Not for association modelling with a censored variable.** These tools
+  reconstruct the *marginal* distribution — right for descriptive summaries. If a
+  censored analyte is a **predictor or outcome in a regression**, imputing it here
+  and plugging it in can bias the association: the imputation must be *congenial*
+  with the analysis model (condition on the outcome). Impute it **inside** the
+  model instead — a joint model (`brms` `mi()` + `cens()`) or a censored method
+  within your own imputation loop.
 - These figures are from a simulation study; validate against your own design
   before relying on imputation for inference.

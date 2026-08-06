@@ -103,9 +103,11 @@ all(filled[m] <= bounds$hi_mat[m] &
 ### Knobs
 
 - **`imp_model`** --- the conditional model relating each analyte to the others.
-  The default `"tobit"` is an interval-censored Gaussian regression fit on
-  observed *and* censored rows, which avoids the selection bias of the
-  observed-only models and keeps imputation reliable to much heavier censoring
+  The default `"copula"` is skew-robust: a flexible per-analyte margin over an
+  interval-censored Gaussian regression. The simpler `"tobit"` is that
+  interval-censored Gaussian regression directly, fit on observed *and* censored
+  rows, which avoids the selection bias of the observed-only models and keeps
+  imputation reliable (on log-normal data) to much heavier censoring
   (it is several times slower, and reduces the predictor dimension by PCA when
   analytes outnumber samples). The observed-only alternatives are `"ridge"`
   (fastest, always solvable), `"lm"`, and `"glmnet"` (elastic net, closest to
@@ -162,7 +164,7 @@ rbind(
 
 Substituting the detection limit biases the analyte means upward (censoring
 removes the *low* values). The Gibbs imputation, drawing from the conditional
-distribution within each interval --- with the default censored (`"tobit"`)
+distribution within each interval --- with the default censored (`"copula"`)
 model --- recovers the true means with little residual bias, and recovers the
 between-analyte correlation structure as well:
 
@@ -190,14 +192,16 @@ because each analyte's model is fit on its own upper-truncated observed values.
 The common cause is that selection bias, which is exactly what the censored
 model removes.
 
-The default `"tobit"` model, fit on observed **and** censored rows, extends the
-reliable range substantially: in a paired comparison it holds bias near zero and
-coverage near nominal down to at least **~55% non-detects**, at both small and
-large `n`. Distribution shape still matters (right-skewed data is more
-forgiving), and enough must remain observed to fit the conditional model, but in
-practice the default keeps imputation trustworthy well into moderate-to-heavy
-censoring. See `validation/README.md` for the full study and how to reproduce
-it.
+Fitting on observed **and** censored rows removes that selection bias and extends
+the reliable range substantially. The `"tobit"` model holds bias near zero and
+coverage near nominal down to **~55% non-detects** at both small and large `n`
+--- **when the margins are log-normal**; under strong right-skew its mean is
+biased downward (larger `n` then makes coverage *worse*). The default
+`"copula"` was built to fix exactly that: it keeps the mean near-unbiased and its
+intervals near-nominal across the whole reliable range *whatever the margin
+shape*. Enough must remain observed to fit the conditional model. See the "How
+much can you trust the imputation?" guide and `validation/PHASE3_SKEW_PLAN.md` for
+the full study.
 
 ## Assumptions and caveats
 
