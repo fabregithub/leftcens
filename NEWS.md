@@ -1,3 +1,17 @@
+# leftcens 0.9.0
+
+* **New `impute_censored_conditional()`**: multiple imputation of a single
+  left-/interval-censored variable conditional on a *general* design matrix (an
+  outcome, mixed-type covariates, other analytes) — the general-predictor
+  complement to `gsimp_impute()`, which conditions on other analytes only. Handles
+  skew via the sinh-arcsinh margin, respects per-cell censoring bounds, and does
+  proper MI (draws the margin and regression parameters). This is the reusable
+  core for fully-conditional-specification loops and congenial imputation of a
+  censored *exposure* using the outcome.
+* **Exported the sinh-arcsinh margin API** (previously internal): `fit_shash_margin()`
+  (interval-censored MLE), `draw_margin()` (proper-MI parameter draw), and the
+  latent-scale transforms `x_to_z()` / `z_to_x()`.
+
 # leftcens 0.8.0
 
 * **`imp_model = "copula"` is now the default** for `gsimp_impute()`,

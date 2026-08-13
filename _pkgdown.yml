@@ -45,7 +45,17 @@ reference:
   - is_cens_bounds
   - gsimp_impute
   - gsimp_mi
+  - impute_censored_conditional
   - rnorm_trunc
+
+- title: Skewed margin
+  desc: >
+    The sinh-arcsinh transform-to-normality margin behind copula and
+    general-predictor imputation of skewed, censored variables.
+  contents:
+  - fit_shash_margin
+  - draw_margin
+  - x_to_z
 
 - title: Reliability
   desc: Pre-flight check of whether imputation is trustworthy for a design.
