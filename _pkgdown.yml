@@ -44,6 +44,7 @@ reference:
   - build_bounds
   - is_cens_bounds
   - gsimp_impute
+  - gsimp_mi
   - rnorm_trunc
 
 - title: Reliability
